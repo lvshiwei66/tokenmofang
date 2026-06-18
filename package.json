@@ -1,0 +1,9 @@
+{
+  "name": "tokenmofang",
+  "private": true,
+  "workspaces": ["code/cli", "code/api"],
+  "scripts": {
+    "build": "npm run build -w @tokenmofang/cli & npm run build -w @tokenmofang/api & wait",
+    "dev": "npm run dev -w @tokenmofang/cli & npm run dev -w @tokenmofang/api & wait"
+  }
+}
