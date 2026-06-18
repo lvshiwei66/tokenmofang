@@ -3,14 +3,13 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "code/cli",
-    "code/api"
+    "code/cli"
   ],
   "scripts": {
-    "build": "npm run build -w @tokenmofang/cli & npm run build -w @tokenmofang/api & wait",
-    "dev": "npm run dev -w @tokenmofang/cli & npm run dev -w @tokenmofang/api & wait",
-    "lint": "eslint .",
-    "format": "prettier --write .",
+    "build": "npm run build -w @tokenmofang/cli",
+    "dev": "npm run dev -w @tokenmofang/cli",
+    "lint": "eslint code/",
+    "format": "prettier --write code/",
     "test": "vitest run"
   },
   "devDependencies": {

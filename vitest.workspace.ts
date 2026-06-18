@@ -1,1 +1,1 @@
-export default ["code/cli", "code/api"];
+export default ["code/cli"];

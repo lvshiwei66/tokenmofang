@@ -33,16 +33,17 @@ tmf CLI ──list/ask──►  API ──► provider registry / cache
 - `rollback` restores from a `.bak` file.
 - `import`/`export` serialize the full tool configuration to/from YAML.
 
-## Key Directories
 
 ```
-tokenmofang/
-├── docs/                  # Requirements and design docs
-│   └── requirements-raw.md
-├── code/                  # Source code (empty — not yet implemented)
-│   ├── cli/               # CLI package (planned: node + commander.js + TypeScript)
-│   └── api/               # API package (planned: node + fastify + TypeScript)
+tokenmofang/                  # 公开仓库 (CLI)
+├── docs/                     # 需求文档 + agent 配置
+├── code/
+│   └── cli/                  # CLI 包 (commander.js + TypeScript)
 └── AGENTS.md
+
+tokenmofangapi/               # 私有仓库 (API) — 禁止开源
+└── src/
+    └── server.ts             # Fastify 服务端
 ```
 
 ## Development Commands
@@ -55,8 +56,8 @@ Not yet established. Expected toolchain:
 - **Build**: `tsc` or `tsup`/`esbuild` for each package
 - **Test**: `vitest` or `node --test` (TBD)
 - **Lint**: `eslint` + `prettier`
-- **CLI entry**: `packages/cli/src/index.ts` → `tmf` binary
-- **API entry**: `packages/api/src/server.ts` → HTTP server
+- **CLI entry**: `code/cli/src/index.ts` → `tmf` binary
+- **API entry**: `tokenmofangapi/src/server.ts` → HTTP server（私有仓库）
 
 ## Code Conventions & Common Patterns
 
@@ -113,7 +114,35 @@ Not yet established. Expected toolchain:
 - **CLI framework**: [commander.js](https://github.com/tj/commander.js)
 - **API framework**: [fastify](https://www.fastify.io/)
 - **Config parsing**: TOML, JSON, YAML support required for app config mutation
-- **API security**: no authentication; rate limiting (8 req/min/client); client identity via idempotent fingerprint generated at `setup` time
+- **API security**: 客户端注册 + x-client-id 验证（见下方「客户端注册流」）；速率限制（8 req/min/client，固定窗口）
+
+### 客户端注册流
+
+```
+CLI (setup)                          API
+─────────────                        ───
+1. 生成机器指纹（幂等）
+2. POST /register ────────────────►  3. 混合计算生成 x-client-id
+4. 保存 x-client-id ◄──────────────  （类似公私钥签名原理）
+5. 后续请求带 x-client-id ────────►  6. 每个请求验证 x-client-id 有效性
+```
+
+- 非 CLI 客户端（未注册）的请求将被拒绝
+- API 禁止伪造 x-client-id：x-client-id 由 API 签发，客户端仅保存使用
+
+## 仓库拆分
+
+- **CLI** (`tokenmofang`) — 公开仓库，含 `code/cli/` 和共享类型
+- **API** (`tokenmofangapi`) — 私有仓库，含 API 服务端代码，**禁止开源**
+- 两个仓库独立开发，通过 HTTP 协议通信
+
+## 分支策略
+
+- `main` — 稳定分支，仅从 `dev` 合并，用于发布
+- `dev` — 日常开发分支，所有功能从 `dev` 切出 feature 分支后合并回 `dev`
+- 单人开发模式：直接在 `dev` 开发，发布时合并到 `main`
+- 分支命名：`issue/N-简短描述`（如 `issue/1-api-skeleton`）
+- 开发路径：独立 git worktree，路径约定 `../tokenmofang-issueN/`
 
 ## Testing & QA
 
