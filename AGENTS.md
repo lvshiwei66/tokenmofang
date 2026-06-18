@@ -104,9 +104,13 @@ Not yet established. Expected toolchain:
 | `code/cli/src/commands/import.ts`   | Import settings from YAML                                    |
 | `code/cli/src/commands/export.ts`   | Export settings to YAML                                      |
 | `code/cli/src/detectors/`           | Per-app config format detectors (TOML, JSON, YAML)           |
-| `code/api/src/server.ts`            | Fastify server bootstrap                                     |
-| `code/api/src/routes/`              | API route handlers (list, ask, etc.)                         |
-| `code/api/src/cache.ts`             | Caching layer for provider data                              |
+| `code/api/src/server.ts`            | Fastify server bootstrap (buildServer factory)               |
+| `code/api/src/main.ts`              | Entry point: startup, graceful shutdown, 503 shutdown hook   |
+| `code/api/src/auth.ts`              | HMAC-SHA256 x-client-id signing and verification             |
+| `code/api/src/registerRoute.ts`     | POST /api/v1/register with schema validation                 |
+| `code/api/src/healthRoute.ts`       | GET /health (no version prefix, no auth)                     |
+| `code/api/src/cache.ts`             | In-memory cache with lazy-expiry TTL                         |
+| `code/api/src/config.ts`            | Environment variable config with defaults and validation     |
 
 ## Runtime/Tooling Preferences
 
@@ -140,9 +144,15 @@ CLI (setup)                          API
 
 - `main` — 稳定分支，仅从 `dev` 合并，用于发布
 - `dev` — 日常开发分支，所有功能从 `dev` 切出 feature 分支后合并回 `dev`
-- 单人开发模式：直接在 `dev` 开发，发布时合并到 `main`
 - 分支命名：`issue/N-简短描述`（如 `issue/1-api-skeleton`）
-- 开发路径：独立 git worktree，路径约定 `../tokenmofang-issueN/`
+
+### Worktree 隔离（强制）
+
+- 每一个 Issue 必须在独立的 git worktree 中开发，完成后删除 worktree
+- CLI 开发路径：`../tokenmofang-issueN/`（相对于 `tokenmofang` 仓库根目录）
+- API 开发路径：`../tokenmofangapi-issueN/`（相对于 `tokenmofangapi` 仓库根目录）
+- Bug 修复与功能开发同等对待：在对应仓库的 `dev` 分支上创建 worktree
+- 完成后执行 `git worktree remove <path>` 清理
 
 ## Testing & QA
 
