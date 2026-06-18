@@ -161,6 +161,10 @@ CLI (setup)                          API
 - API endpoint tests (fastify `inject()` or supertest)
 - `test` command itself serves as a live smoke test
 - Coverage expectations: not yet defined
+- **E2E 测试必须保存截图或录制视频作为工作证明**。每次 E2E 测试完成后，必须将截图/视频上传到对应的 GitHub Issue 评论中，作为人类验收的依据。可选用以下工具：
+  - `playwright-cli` 的 `screenshot`、`video-start`/`video-stop` 命令
+  - ImageMagick (`import`) 或 Wayland (`grim`) 截图
+  - 截图/视频通过 `git push` + raw URL 或浏览器直接上传到 Issue
 
 ## Rule
 
