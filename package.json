@@ -1,9 +1,24 @@
 {
   "name": "tokenmofang",
   "private": true,
-  "workspaces": ["code/cli", "code/api"],
+  "type": "module",
+  "workspaces": [
+    "code/cli",
+    "code/api"
+  ],
   "scripts": {
     "build": "npm run build -w @tokenmofang/cli & npm run build -w @tokenmofang/api & wait",
-    "dev": "npm run dev -w @tokenmofang/cli & npm run dev -w @tokenmofang/api & wait"
+    "dev": "npm run dev -w @tokenmofang/cli & npm run dev -w @tokenmofang/api & wait",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.5.0",
+    "prettier": "^3.8.4",
+    "typescript-eslint": "^8.61.1",
+    "vitest": "^4.1.9"
   }
 }

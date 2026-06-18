@@ -1,9 +1,9 @@
 import Fastify from "fastify";
 
-export async function buildServer() {
+export function buildServer() {
   const app = Fastify({ logger: true });
 
-  app.get("/health", async () => ({ status: "ok" }));
+  app.get("/health", () => ({ status: "ok" }));
 
   return app;
 }

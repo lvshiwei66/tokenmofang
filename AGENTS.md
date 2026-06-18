@@ -5,6 +5,7 @@
 **Token魔方 (tokenmofang)** — a tool for managing and switching third-party LLM providers across locally-installed AI applications. It works by reading and modifying each application's config file (TOML, JSON, YAML) to point at a different provider/model.
 
 Two deployable artifacts:
+
 - **CLI** (`tmf`) — command-line tool running on user machines
 - **API** — cloud-hosted backend serving provider listings, health status, and detail queries
 
@@ -60,46 +61,51 @@ Not yet established. Expected toolchain:
 ## Code Conventions & Common Patterns
 
 ### Formatting & Naming
+
 - TypeScript strict mode
 - kebab-case for CLI commands (`tmf use`, `tmf rollback`)
 - camelCase for code identifiers
 - PascalCase for classes and React components (if any)
 
 ### Error Handling
+
 - CLI: user-facing errors in Chinese; structured error codes for scripting
 - `use` command: auto-retry on failure; re-run `setup` detection before retry
 - `rollback`: explicit error when backup is missing
 
 ### State & Configuration
+
 - CLI persists user settings (API keys, last-used model) locally — exact storage TBD (likely a dotfile or OS config dir)
 - `setup` produces a structured detection report stored locally
 - Backup strategy: every config mutation creates a sibling `.bak` file (e.g., `settings.json` → `settings.json.bak`)
 
 ### Async Patterns
+
 - CLI commands are I/O heavy (file reads, network calls) — async/await throughout
 - API responses cached aggressively for `list` and `ask` endpoints to reduce backend cost
 - Rate limiting on API: 8 requests per minute per client, identified by a stable client ID
 
 ### Dependency Injection
+
 - Not yet specified. Consider a simple service-locator or factory pattern for testability of file-system and network operations.
 
 ## Important Files (Planned)
 
-| File | Purpose |
-|------|---------|
-| `code/cli/src/index.ts` | CLI entry point; commander.js program definition |
-| `code/cli/src/commands/setup.ts` | App detection and local report generation |
-| `code/cli/src/commands/list.ts` | Query provider list from API |
-| `code/cli/src/commands/use.ts` | Switch provider for an app (backup + rewrite config) |
-| `code/cli/src/commands/rollback.ts` | Restore config from backup |
-| `code/cli/src/commands/test.ts` | Health-check a provider (latency, throughput, accessibility) |
-| `code/cli/src/commands/ask.ts` | Fetch provider detail docs from API |
-| `code/cli/src/commands/import.ts` | Import settings from YAML |
-| `code/cli/src/commands/export.ts` | Export settings to YAML |
-| `code/cli/src/detectors/` | Per-app config format detectors (TOML, JSON, YAML) |
-| `code/api/src/server.ts` | Fastify server bootstrap |
-| `code/api/src/routes/` | API route handlers (list, ask, etc.) |
-| `code/api/src/cache.ts` | Caching layer for provider data |
+| File                                | Purpose                                                      |
+| ----------------------------------- | ------------------------------------------------------------ |
+| `code/cli/src/index.ts`             | CLI entry point; commander.js program definition             |
+| `code/cli/src/commands/setup.ts`    | App detection and local report generation                    |
+| `code/cli/src/commands/list.ts`     | Query provider list from API                                 |
+| `code/cli/src/commands/use.ts`      | Switch provider for an app (backup + rewrite config)         |
+| `code/cli/src/commands/rollback.ts` | Restore config from backup                                   |
+| `code/cli/src/commands/test.ts`     | Health-check a provider (latency, throughput, accessibility) |
+| `code/cli/src/commands/ask.ts`      | Fetch provider detail docs from API                          |
+| `code/cli/src/commands/import.ts`   | Import settings from YAML                                    |
+| `code/cli/src/commands/export.ts`   | Export settings to YAML                                      |
+| `code/cli/src/detectors/`           | Per-app config format detectors (TOML, JSON, YAML)           |
+| `code/api/src/server.ts`            | Fastify server bootstrap                                     |
+| `code/api/src/routes/`              | API route handlers (list, ask, etc.)                         |
+| `code/api/src/cache.ts`             | Caching layer for provider data                              |
 
 ## Runtime/Tooling Preferences
 
@@ -118,6 +124,7 @@ Not yet established. Expected toolchain:
 - Coverage expectations: not yet defined
 
 ## Rule
+
 - 永远使用中文对话
 
 ## Agent skills
