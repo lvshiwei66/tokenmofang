@@ -9,7 +9,7 @@ Two deployable artifacts:
 - **CLI** (`tmf`) — command-line tool running on user machines
 - **API** — cloud-hosted backend serving provider listings, health status, and detail queries
 
-**Status**: pre-implementation (requirements exist; `code/` is empty).
+**Status**: active (CLI in development; API pending)
 
 ## Architecture & Data Flow
 
@@ -18,20 +18,21 @@ User machine                          Cloud
 ─────────────                         ─────
 tmf CLI ──list/ask──►  API ──► provider registry / cache
   │                      │
-  │ setup: scans local    │ serves rate-limited (8 req/min/client)
-  │   app configs         │
+  │ detect: lazy scan     │ serves rate-limited (8 req/min/client)
+  │   of installed apps   │
   │                       │
   │ use/rollback:         │
   │   reads/writes app    │
-  │   config files        │
+  │   config via Appfits   │
   └───────────────────────┘
 ```
 
-- CLI talks to the API for discovery (`list`, `ask`); operates locally for config mutations (`use`, `rollback`, `setup`, `test`).
-- `setup` detects installed AI apps (codex, claude-code, openclaw, etc.) and their config paths/types, writing a local structured report.
-- `use` backs up the current config (`.bak` extension alongside the original), then rewrites it for the target provider.
-- `rollback` restores from a `.bak` file.
+- CLI talks to the API for discovery (`list`, `ask`); operates locally for config mutations (`use`, `rollback`, `test`).
+- App detection runs lazily on-demand; no separate `setup` command.
+- `use` backs up config files (sibling `.bak`), then delegates rewriting to per-app Appfits.
+- `rollback` restores from `.bak` files.
 - `import`/`export` serialize the full tool configuration to/from YAML.
+
 
 
 ```
@@ -71,13 +72,13 @@ Not yet established. Expected toolchain:
 ### Error Handling
 
 - CLI: user-facing errors in Chinese; structured error codes for scripting
-- `use` command: auto-retry on failure; re-run `setup` detection before retry
+- `use` command: App 未安装时重新检测并提示用户重试；其他失败输出中文错误退出非零
 - `rollback`: explicit error when backup is missing
 
 ### State & Configuration
 
-- CLI persists user settings (API keys, last-used model) locally — exact storage TBD (likely a dotfile or OS config dir)
-- `setup` produces a structured detection report stored locally
+- CLI persists per-provider settings in `~/.tokenmofang/settings.json` (apiKey, model, baseUrl, clientId)
+- App detection runs lazily on-demand (not as a separate `setup` command)
 - Backup strategy: every config mutation creates a sibling `.bak` file (e.g., `settings.json` → `settings.json.bak`)
 
 ### Async Patterns
@@ -95,15 +96,18 @@ Not yet established. Expected toolchain:
 | File                                | Purpose                                                      |
 | ----------------------------------- | ------------------------------------------------------------ |
 | `code/cli/src/index.ts`             | CLI entry point; commander.js program definition             |
-| `code/cli/src/commands/setup.ts`    | App detection and local report generation                    |
+| `code/cli/src/commands/use.ts`      | Switch provider for an app (backup + Appfit rewrite)         |
 | `code/cli/src/commands/list.ts`     | Query provider list from API                                 |
-| `code/cli/src/commands/use.ts`      | Switch provider for an app (backup + rewrite config)         |
+| `code/cli/src/commands/ask.ts`      | Fetch provider detail docs from API                          |
 | `code/cli/src/commands/rollback.ts` | Restore config from backup                                   |
 | `code/cli/src/commands/test.ts`     | Health-check a provider (latency, throughput, accessibility) |
-| `code/cli/src/commands/ask.ts`      | Fetch provider detail docs from API                          |
 | `code/cli/src/commands/import.ts`   | Import settings from YAML                                    |
 | `code/cli/src/commands/export.ts`   | Export settings to YAML                                      |
-| `code/cli/src/detectors/`           | Per-app config format detectors (TOML, JSON, YAML)           |
+| `code/cli/src/appfits/`             | Per-app config modifiers (Codex, Claude Code, OpenClaw)      |
+| `code/cli/src/detectors/`           | Per-app installation detectors                               |
+| `code/cli/src/config/settings.ts`   | Read/write ~/.tokenmofang/settings.json                      |
+| `code/cli/src/providers/ask.ts`     | ask API client (provider detail query)                       |
+| `code/cli/src/types/provider.ts`    | Shared provider types (ProviderInfo, UseParams)              |
 | `code/api/src/server.ts`            | Fastify server bootstrap (buildServer factory)               |
 | `code/api/src/main.ts`              | Entry point: startup, graceful shutdown, 503 shutdown hook   |
 | `code/api/src/auth.ts`              | HMAC-SHA256 x-client-id signing and verification             |
@@ -123,7 +127,7 @@ Not yet established. Expected toolchain:
 ### 客户端注册流
 
 ```
-CLI (setup)                          API
+CLI (首次 API 调用时)                API
 ─────────────                        ───
 1. 生成机器指纹（幂等）
 2. POST /register ────────────────►  3. 混合计算生成 x-client-id
