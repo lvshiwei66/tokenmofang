@@ -1,0 +1,35 @@
+============================================
+  Issue #16 Multi-Protocol URL E2E Test
+============================================
+
+--- 1. API returns urls format (deepseek) ---
+{
+    "urls": {
+        "default": "https://api.deepseek.com",
+        "openai": "https://api.deepseek.com/v1",
+        "anthropic": "https://api.deepseek.com/anthropic"
+    }
+}
+
+--- 2. CLI ask scnet ---
+  API 地址 (default)：https://api.scnet.cn/api/llm/v1
+  API 地址 (openai)：https://api.scnet.cn/api/llm/v1
+  API 地址 (anthropic)：https://api.scnet.cn/api/anthropic
+
+--- 3. Provider memory stores urls map ---
+{
+    "scnet": {
+        "urls": {
+            "default": "https://api.scnet.cn/api/llm/v1",
+            "openai": "https://api.scnet.cn/api/llm/v1",
+            "anthropic": "https://api.scnet.cn/api/anthropic"
+        }
+    }
+}
+
+--- 4. Claude Code config (anthropic protocol resolved) ---
+ANTHROPIC_BASE_URL: https://api.scnet.cn/api/anthropic
+
+--- 5. Test summary ---
+Total: 134 tests passed (25 API + 109 CLI)
+TypeScript: both API and CLI compile without errors
