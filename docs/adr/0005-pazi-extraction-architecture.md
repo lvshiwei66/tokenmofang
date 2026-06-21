@@ -17,7 +17,7 @@ Token魔方需要从三个外部站点（hvoy.ai、ztest.ai、tokensqc.com）定
 
 ### 1. pazi 作为独立私有仓库，通过 git submodule 挂载
 
-`pazi` 是独立私有仓库，以 git submodule 形式挂载在公开仓库 `tokenmofang/pazi/`。
+`pazi` 是独立私有仓库，以 git submodule 形式挂载在公开仓库 `tokenmofang/agent/pazi/`。
 
 公开 clone 者看到空目录；内部开发者通过 `git submodule update --init` 获取内容。
 
@@ -36,7 +36,7 @@ Token魔方需要从三个外部站点（hvoy.ai、ztest.ai、tokensqc.com）定
 ### 3. Runner + Agent 双模式
 
 - **Runner 模式**：`tsx src/run.ts --all`，一次性非交互执行，输出 JSON 摘要。全部成功退出 0，否则非零
-- **Agent 交互模式**：加载 Superpowers skill（`pazi/skills/extract-providers/SKILL.md`），Agent 逐步走流程，展示审核门
+- **Agent 交互模式**：加载 Superpowers skill（`agent/pazi/skills/extract-providers/SKILL.md`），Agent 逐步走流程，展示审核门
 
 Runner 失败时 Agent 自动进入交互模式处理失败源和冲突裁决。
 
@@ -51,7 +51,7 @@ Runner 失败时 Agent 自动进入交互模式处理失败源和冲突裁决。
 ### 5. 目录结构
 
 ```
-pazi/
+agent/pazi/
 ├── skills/
 │   └── extract-providers/SKILL.md
 ├── src/
@@ -74,7 +74,7 @@ pazi/
 
 | 影响 | 说明 |
 |------|------|
-| 仓库管理 | 新增私有仓库 `pazi`，在 `tokenmofang` 中添加 submodule 引用 |
+| 仓库管理 | 新增私有仓库 `tokenmofang-pazi`，在 `tokenmofang` 中添加 submodule 引用 |
 | 开发者环境 | 需要 `git submodule update --init` 获取 pazi 内容 |
 | 部署 | `write.ts` 写入 `providers.yaml` 到父仓库路径，需要约定路径或环境变量 |
 | 安全 | pazi 内容绝不会泄漏到公开仓库 |

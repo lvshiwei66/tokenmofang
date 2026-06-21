@@ -111,7 +111,7 @@ tags:
 ## Extractor Registry（扩展机制）
 
 ```typescript
-// pazi/src/extractors/registry.ts
+// agent/pazi/src/extractors/registry.ts
 export const sources: SourceConfig[] = [
   { id: "hvoy",    label: "hvoy.ai",    run: () => import("./hvoy.js") },
   { id: "ztest",   label: "ztest.ai",   run: () => import("./ztest.js") },
@@ -151,7 +151,7 @@ export const sources: SourceConfig[] = [
 
 ```
 tokenmofang/                            # 公开仓库
-├── pazi/                               # git submodule → 私有仓库
+├── agent/pazi/                         # git submodule → 私有仓库
 │   ├── skills/
 │   │   └── extract-providers/
 │   │       └── SKILL.md                # Superpowers 技能
