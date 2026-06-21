@@ -43,7 +43,7 @@ interface RawProvider {
   urls?: Record<string, string>;
   defaultModel?: string;
   models?: string[];
-  latency?: number;
+  latency?: number | null;
   price?: string;
   tokensPerSecond?: number | null;
   tags?: string[];
@@ -60,14 +60,14 @@ interface RawProvider {
 | `urls` | `urls` | 必须有 `default` 键 |
 | `defaultModel` | `defaultModel` | 直接 |
 | `models` | `models` | 直接 |
-| `latency` | `latency` | 直接 |
-| `price` | `price` | merge 时统一为 `"$X.XX"` |
+| `latency` | `latency` | 直接（`number \| null`，首 token 延迟 ms） |
+| `price` | `price` | 直接保留原始文本，不做格式/货币转换 |
 | `tokensPerSecond` | `tokensPerSecond` | 直接 |
 | `tags` | `tags` | 直接 |
 
 ### 去重与冲突
 
-- **去重键**：`name` 小写去空格归一化（`"Packy Code"` = `"packycode"`）
+- **去重键**：`name` 经 NFKC 标准化 → 小写 → 删除所有 Unicode 空白字符（`\p{Zs}` + `\t\n\r`）后归一化比对
 - **冲突策略**：三源平等，首次出现入库，冲突字段以 YAML 注释标记 `# ⚠ REVIEW: ...`
 
 ```yaml
@@ -100,7 +100,7 @@ tags:
 - 页面类型：SSR + JSON-LD
 - 方法：
   1. fetch `/stations` → 解析 `<script type="application/ld+json">` 获取站名+URL
-  2. Playwright 并发访问 `/stations/<slug>` 详情页
+  2. Playwright 并发访问 `/stations/<slug>` 详情页（上限 5，信号量控制；`PAZI_CONCURRENCY` 可调）
   3. 提取 intro, models, urls, tags
 - 特殊处理：页面自带分类标签直接复用
 
@@ -123,38 +123,59 @@ export const SOURCES: SourceConfig[] = [
 
 ## Skill Flow
 
+两种触发模式：
+
+### Runner 模式（一次性）
+
 ```
-1. 触发 extract-providers skill
-2. Agent 并行运行三个提取器脚本
-3. 汇总报告各源状态 + raw-*.json 摘要
-4. 🛑 人工审核门：确认/拒绝/重跑
-5. Agent 运行 merge → merged.json
-6. Agent 展示冲突清单，逐条裁决
-7. Agent 运行 write → providers.yaml，展示 diff
-8. git commit
+1. tsx src/run.ts --all
+2. 串行执行三个提取器 → data/extracts/raw-*.json
+3. 输出 JSON 摘要（ok, sources, totalUnique, conflictCount）
+4. 全部成功（ok=true）→ 自动执行 merge → merged.json
+5. 有失败（ok=false）→ 退出非零，降级到 Agent 交互模式
+```
+
+### Agent 交互模式
+
+```
+1. 触发 extract-providers skill（或 Runner 失败自动进入）
+2. Agent 展示失败源状态，人类决定：重跑 / 跳过
+3. Agent 运行 merge → merged.json
+4. Agent 展示冲突清单，逐条裁决
+5. 🛑 人工审核门：确认 / 拒绝 / 重跑
+6. Agent 运行 write → providers.yaml，展示 diff
+7. git commit
 ```
 
 ## File Structure
 
 ```
-tokenmofang/
-├── skills/
-│   └── extract-providers/SKILL.md    ← Superpowers 技能
-├── code/api/src/extractors/
-│   ├── types.ts                      ← RawProvider + Extractor 接口
-│   ├── registry.ts                   ← 数据源注册表
-│   ├── hvoy.ts                       ← hvoy.ai 提取器
-│   ├── ztest.ts                      ← ztest.ai 提取器
-│   ├── tokensqc.ts                   ← tokensqc.com 提取器
-│   ├── merge.ts                      ← 合并 + 冲突标记
-│   └── write.ts                      ← 写入 providers.yaml
+tokenmofang/                            # 公开仓库
+├── pazi/                               # git submodule → 私有仓库
+│   ├── skills/
+│   │   └── extract-providers/
+│   │       └── SKILL.md                # Superpowers 技能
+│   ├── src/
+│   │   ├── run.ts                      # Runner 统一入口
+│   │   ├── types.ts                    # YamlProvider 独立副本
+│   │   └── extractors/
+│   │       ├── types.ts                # RawProvider + Extractor 接口
+│   │       ├── registry.ts             # 数据源注册表
+│   │       ├── hvoy.ts                 # hvoy.ai 提取器
+│   │       ├── ztest.ts                # ztest.ai 提取器
+│   │       ├── tokensqc.ts             # tokensqc.com 提取器
+│   │       ├── merge.ts                # 三源合并 + 冲突标记
+│   │       └── write.ts                # 写入 providers.yaml（含备份、缓存失效）
+│   ├── data/
+│   │   └── extracts/                   # 中间产物
+│   │       ├── raw-hvoy.json
+│   │       ├── raw-ztest.json
+│   │       ├── raw-tokensqc.json
+│   │       └── merged.json
+│   ├── package.json
+│   └── tsconfig.json
 └── code/api/data/
-    ├── providers.yaml                ← 目标 YAML（现有）
-    └── extracts/                     ← 中间产物
-        ├── raw-hvoy.json
-        ├── raw-ztest.json
-        ├── raw-tokensqc.json
-        └── merged.json
+    └── providers.yaml                  # 目标 YAML（write.ts 写入）
 ```
 
 ## Out of Scope (v1)
