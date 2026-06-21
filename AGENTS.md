@@ -176,6 +176,29 @@ CLI (首次 API 调用时)                API
 
 ## Agent skills
 
+本项目使用 [mattpocock/skills](https://github.com/mattpocock/skills) v1.0.1 技能库。
+
+### User-invoked skills（仅手动触发）
+
+| 技能 | 说明 |
+|------|------|
+| `/triage` | Issue 分诊状态机（`needs-triage` → `ready-for-agent` → …） |
+| `/to-issues` | 将计划/PRD 拆分为独立 Issue，使用垂直切片 |
+| `/to-prd` | 将当前对话转为 PRD 并发布到 Issue Tracker |
+| `/grill-with-docs` | 盘问 + 构建领域模型 + 更新 `CONTEXT.md` 和 ADR |
+| `/improve-codebase-architecture` | 扫描代码库寻找架构深化机会 |
+| `/handoff` | 压缩对话为交接文档，供另一个 Agent 继续 |
+
+### Model-invoked skills（模型可自动调用）
+
+| 技能 | 说明 |
+|------|------|
+| `tdd` | 测试驱动开发：红-绿-重构循环 |
+| `diagnosing-bugs` | 诊断循环：重现→最小化→假设→插桩→修复→回归测试 |
+| `codebase-design` | 深度模块设计语言（接口、接缝、适配器） |
+| `domain-modeling` | 构建/打磨项目领域模型，更新 `CONTEXT.md` 和 ADR |
+| `implement` | 实现功能 |
+
 ### Issue tracker
 
 Issues live as GitHub Issues in `lvshiwei66/tokenmofang`. See `docs/agents/issue-tracker.md`.
