@@ -47,3 +47,19 @@ _Avoid_: 限流, 频控
 **API Key**:
 Provider 签发给用户的密钥，CLI 写入 App 配置文档以通过 Provider 的身份验证。CLI 按 Provider 记忆用户输入的 Key（`~/.tokenmofang/settings.json`），下次 use 同一 Provider 时自动填充。
 _Avoid_: 密钥, token, secret
+
+**pazi**:
+Provider 数据采集系统。从外部站点抓取 AI API 中转站信息，合并写入 Provider Listing。私有组件，不对终端用户暴露。
+_Avoid_: crawler, scraper, 爬虫
+
+**Extractor（提取器）**:
+pazi 中的单数据源抓取模块。每个外部站点对应一个 Extractor，实现统一的 `Extractor` 接口，输出标准化的 RawProvider 列表。
+_Avoid_: 采集器, fetcher
+
+**RawProvider（原始供应商数据）**:
+Extractor 输出的中间数据结构，包含从外部站点抓取的原始字段（name, intro, models, latency 等）。不直接写入 Provider Listing，需经 merge 和人工审核。
+_Avoid_: 原始数据, raw data
+
+**Provider Listing（供应商清单）**:
+`providers.yaml` 文件，包含所有已知 Provider 的结构化数据。API 从此文件加载数据服务 list/ask 接口。由人工维护 + pazi 追加合并共同构建。
+_Avoid_: 提供商列表, registry

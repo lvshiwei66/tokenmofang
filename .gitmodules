@@ -4,3 +4,6 @@
 [submodule "code/api"]
 	path = code/api
 	url = git@github.com:lvshiwei66/tokenmofang-api.git
+[submodule "agent/pazi"]
+	path = agent/pazi
+	url = git@github.com:lvshiwei66/tokenmofang-pazi.git
