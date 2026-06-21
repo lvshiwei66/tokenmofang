@@ -35,7 +35,7 @@ extractor-N → raw-N.json ─┘
 
 ```typescript
 interface RawProvider {
-  source: "hvoy" | "ztest" | "tokensqc";
+  source: string;                            // 数据源标识（如 "hvoy"）
   fetchedAt: string;                        // ISO 8601
   name: string;                             // 标准化名称
   intro?: string;
@@ -67,7 +67,7 @@ interface RawProvider {
 
 ### 去重与冲突
 
-- **去重键**：`name` 经 NFKC 标准化 → 小写 → 删除所有 Unicode 空白字符（`\p{Zs}` + `\t\n\r`）后归一化比对
+- **去重键**：`name` 经 NFKC 标准化 → 小写 → 删除所有 Unicode 空白字符（`\p{Zs}` + `\t\n\r\v\f`）后归一化比对
 - **冲突策略**：三源平等，首次出现入库，冲突字段以 YAML 注释标记 `# ⚠ REVIEW: ...`
 
 ```yaml
@@ -111,8 +111,8 @@ tags:
 ## Extractor Registry（扩展机制）
 
 ```typescript
-// code/api/src/extractors/registry.ts
-export const SOURCES: SourceConfig[] = [
+// pazi/src/extractors/registry.ts
+export const sources: SourceConfig[] = [
   { id: "hvoy",    label: "hvoy.ai",    run: () => import("./hvoy.js") },
   { id: "ztest",   label: "ztest.ai",   run: () => import("./ztest.js") },
   { id: "tokensqc", label: "tokensqc.com", run: () => import("./tokensqc.js") },
