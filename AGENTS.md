@@ -148,15 +148,21 @@ CLI (首次 API 调用时)                API
 
 - `main` — 稳定分支，仅从 `dev` 合并，用于发布
 - `dev` — 日常开发分支，所有功能从 `dev` 切出 feature 分支后合并回 `dev`
-- 分支命名：`issue/N-简短描述`（如 `issue/1-api-skeleton`）
+- 分支命名：`feat/issue-N`（如 `feat/issue-100`）
 
-### Worktree 隔离（强制）
+### Issue 开发工作流（强制）
 
-- 每一个 Issue 必须在独立的 git worktree 中开发，完成后删除 worktree
-- CLI 开发路径：`../tokenmofang-issueN/`（相对于 `tokenmofang` 仓库根目录）
-- API 开发路径：`../tokenmofangapi-issueN/`（相对于 `tokenmofangapi` 仓库根目录）
-- Bug 修复与功能开发同等对待：在对应仓库的 `dev` 分支上创建 worktree
-- 完成后执行 `git worktree remove <path>` 清理
+针对 Issue 实施开发或修改时，必须遵循以下流程：
+
+1. **创建分支**：从 `dev` 创建 `feat/issue-N` 分支（N 为 Issue 编号）
+2. **创建 Worktree**：为该分支创建独立的 git worktree 进行隔离开发
+   - CLI 开发路径：`../tokenmofang-issueN/`（相对于 `tokenmofang` 仓库根目录）
+   - API 开发路径：`../tokenmofangapi-issueN/`（相对于 `tokenmofangapi` 仓库根目录）
+3. **开发迭代**：在 worktree 中持续经历开发 → 代码审核 → 修复 → E2E 测试等过程
+4. **提交推送**：开发完成并通过所有验证后，提交代码并推送到远程
+5. **清理 Worktree**：推送完成后执行 `git worktree remove <path>` 删除 worktree
+
+Bug 修复与功能开发同等对待：在对应仓库的 `dev` 分支上创建 worktree。
 
 ## Testing & QA
 
