@@ -63,3 +63,19 @@ _Avoid_: 原始数据, raw data
 **Provider Listing（供应商清单）**:
 `providers.yaml` 文件，包含所有已知 Provider 的结构化数据。API 从此文件加载数据服务 list/ask 接口。由人工维护 + pazi 追加合并共同构建。
 _Avoid_: 提供商列表, registry
+
+**Merge（合并）**:
+pazi 将多源 RawProvider 去重合并为 MergedResult 的过程。纯函数，不碰 providers.yaml。两阶段流水线：merge.ts → merged.json → write.ts → providers.yaml。
+_Avoid_: 聚合, 归并
+
+**Conflict Resolution（冲突裁决）**:
+write.ts 发现已存在条目与 merged 数据有字段差异时，在 YAML 中以 `# ⚠ REVIEW:` 注释标记，由人类审核后手动决定保留哪个值。同值不标记。
+_Avoid_: 冲突解决, 差异处理
+
+**Write Report（写入报告）**:
+write.ts 返回的结构化变更摘要，含新增列表、冲突列表、逐字段变更详情。供 Agent/skill 层展示给人类确认。
+_Avoid_: 写入结果, 变更日志
+
+**Trusted Source（可信源）**:
+pazi 信任的 Provider 数据来源。当前可信源为 tokensqc 和 ztest。不可信源（如 hvoy）的数据直接丢弃，不参与合并。源信任分级在 pazi skill 中定义。
+_Avoid_: 可靠源, 白名单源
