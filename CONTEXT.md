@@ -68,14 +68,26 @@ _Avoid_: 提供商列表, registry
 pazi 将多源 RawProvider 去重合并为 MergedResult 的过程。纯函数，不碰 providers.yaml。两阶段流水线：merge.ts → merged.json → write.ts → providers.yaml。
 _Avoid_: 聚合, 归并
 
+**Manual Provider List（手工维护名单）**:
+pazi config.ts 中定义的 `MANUAL_PROVIDERS: string[]` 常量，列出由人类手工维护的 Provider 名称。名单内条目 pazi 完全跳过（不覆盖、不标 REVIEW）。名单增减直接生效。归一化名称后精确匹配。参见 ADR-0008。
+_Avoid_: 手工列表, 黑名单
+
 **Conflict Resolution（冲突裁决）**:
-write.ts 发现已存在条目与 merged 数据有字段差异时，在 YAML 中以 `# ⚠ REVIEW:` 注释标记，由人类审核后手动决定保留哪个值。同值不标记。
+（已废弃，由 ADR-0008 信任分级策略替代）write.ts 发现已存在条目与 merged 数据有字段差异时，在 YAML 中以 `# ⚠ REVIEW:` 注释标记，由人类审核后手动决定保留哪个值。同值不标记。
 _Avoid_: 冲突解决, 差异处理
 
-**Write Report（写入报告）**:
-write.ts 返回的结构化变更摘要，含新增列表、冲突列表、逐字段变更详情。供 Agent/skill 层展示给人类确认。
-_Avoid_: 写入结果, 变更日志
+**Silent Override（静默覆盖）**:
+信任分级策略下，pazi 对非手工维护且无未审核 REVIEW 的既有条目，通过 CST API 原地修改差异字段值为 merge 产出值的过程。merge 产出为空值（null/undefined/""/[]）时不覆盖 YAML 原值。覆盖后不写 REVIEW 注释。参见 ADR-0008。
+_Avoid_: 自动覆盖, 静默更新
 
-**Trusted Source（可信源）**:
-pazi 信任的 Provider 数据来源。当前可信源为 tokensqc 和 ztest。不可信源（如 hvoy）的数据直接丢弃，不参与合并。源信任分级在 pazi skill 中定义。
-_Avoid_: 可靠源, 白名单源
+**Unreviewed Review（未审核 REVIEW）**:
+YAML 条目 commentBefore 中包含 `⚠ REVIEW:` 前缀时，该条目尚未被人类审核。pazi 跳过此类条目，等人类手动删除 REVIEW 注释后转为可维护状态。参见 ADR-0008。
+_Avoid_: 待审核注释, 未处理标记
+
+**Collaborating Sources（参与源）**:
+`MergedProvider.contributingSources: string[]`，记录参与合并的数据源 ID 列表（按注册顺序）。用于新条目 REVIEW 注释中的源标识（如 `tokensqc+ztest`）。参见 ADR-0008。
+_Avoid_: 合并源, 数据来源
+
+**Write Report（写入报告）**:
+write.ts 返回的结构化变更摘要，含新增列表（`added`）、跳过列表（`skipped`）、逐字段变更详情（`changes`）。供 Agent/skill 层展示给人类确认。
+_Avoid_: 写入结果, 变更日志
