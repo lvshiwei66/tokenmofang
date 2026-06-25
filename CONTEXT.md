@@ -91,3 +91,34 @@ _Avoid_: 合并源, 数据来源
 **Write Report（写入报告）**:
 write.ts 返回的结构化变更摘要，含新增列表（`added`）、跳过列表（`skipped`）、逐字段变更详情（`changes`）。供 Agent/skill 层展示给人类确认。
 _Avoid_: 写入结果, 变更日志
+**scrawl.ts（单源抓取命令）**:
+pazi CLI 入口之一：对指定数据源执行单次提取，输出 raw JSON 到 `data/extracts/`。接受位置参数 `sourceId` 和 `--headless` flag。stdout 输出 `SingleSourceOutput` JSON。
+_Avoid_: 抓取脚本, fetch script
+
+**run.ts（全自动 Runner）**:
+pazi CLI 入口之一：并行 spawn 所有已注册 scrawl 子进程，收集结果后调用 merge，stdout 输出 `RunnerOutput` JSON。零参数，支持 `--headless` 传递给子进程。退出码：全部成功 0，任何源失败非 0。
+_Avoid_: 编排器, orchestrator
+
+**Merge CLI（合并命令行）**:
+pazi CLI 入口之一：扫描 `data/extracts/raw-*.json`，调用 `merge()` 纯函数，输出 `merged.json`。stdout 输出 `MergeOutput` JSON（含 `totalUnique`、`conflictCount`、`artifact` 路径）。不依赖 registry。
+_Avoid_: 合并脚本, merge script
+
+**Commands Directory（命令目录）**:
+pazi 中 `src/commands/` 目录，集中放置所有 CLI 入口脚本（`scrawl.ts`、`merge.ts`、`run.ts`），与纯函数模块（`src/extractors/`）分离。
+_Avoid_: CLI 目录, bin 目录
+
+**SingleSourceOutput（单源抓取输出）**:
+`scrawl.ts` 的 stdout JSON 契约：包含 `mode: "single"`、`source`、`status`、`count`、`durationMs`、`artifact`（raw JSON 路径），失败时含 `error`。
+_Avoid_: scrawl 结果, 单源报告
+
+**MergeOutput（合并输出）**:
+Merge CLI 的 stdout JSON 契约：包含 `totalUnique`、`conflictCount`、`artifact`（merged.json 绝对路径）。
+_Avoid_: merge 结果, 合并报告
+
+**RunnerOutput（Runner 输出）**:
+`run.ts` 的 stdout JSON 契约：包含 `ok: boolean`、`sources: Record<string, SingleSourceOutput>`（每源抓取状态）、`totalUnique`、`conflictCount`、`artifacts: { merged }`。
+_Avoid_: run 结果, 全量报告
+
+**pazi:extract（提取技能）**:
+Superpowers skill 的 slash command 名称（`/pazi:extract`）。Model-invoked + User-invoked：Agent 检测到 run.ts 失败时自动激活交互模式；人类也可手动触发。SKILL.md 源文件位于 `agent/pazi/skills/extract-providers/`，经部署脚本同步到 `~/.claude/skills/` 和 `~/.pi/agent/skills/`。
+_Avoid_: extract-providers, 抓取技能
