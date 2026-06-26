@@ -122,3 +122,22 @@ _Avoid_: run 结果, 全量报告
 **pazi:extract（提取技能）**:
 Superpowers skill 的 slash command 名称（`/pazi:extract`）。Model-invoked + User-invoked：Agent 检测到 run.ts 失败时自动激活交互模式；人类也可手动触发。SKILL.md 源文件位于 `agent/pazi/skills/extract-providers/`，经部署脚本同步到 `~/.claude/skills/` 和 `~/.pi/agent/skills/`。
 _Avoid_: extract-providers, 抓取技能
+**Test（测试）**:
+`tmf test` 命令，对指定 Provider 发起一次 Chat Completion 请求，测量延迟、Token 消耗、速率，输出测试报告。本地操作，不经过 Token魔方 API。
+_Avoid_: 测速, benchmark
+
+**Latency（延迟）**:
+Time-to-First-Token（TTFT），从发送请求到收到第一个 token 的耗时，以毫秒为单位。
+_Avoid_: 响应时间, 总耗时
+
+**Token Usage（Token 消耗）**:
+请求与响应的总 token 数（prompt_tokens + completion_tokens），以 K（千）为单位展示。
+_Avoid_: Token 用量, 计费 token
+
+**Throughput（速率）**:
+生成阶段的 token 产出速率：completion_tokens / (total_time - TTFT)，以 token/秒为单位。
+_Avoid_: 速度, TPS
+
+**Unreachable（不可达）**:
+Provider 的 API endpoint 在超时时间内无响应或连接被拒绝，所有度量字段返回 N/A。
+_Avoid_: 不可用, 离线, 超时
