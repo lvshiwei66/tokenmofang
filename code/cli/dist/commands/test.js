@@ -1,9 +1,18 @@
 import { testProvider } from "../providers/tester.js";
 import { fetchProviderInfo } from "../providers/api.js";
 import { readSettings } from "../config/settings.js";
-import { TestError } from "../types/provider.js";
+import { TestError, TEST_EXIT_CODES } from "../types/provider.js";
 const DEFAULT_PROMPT = "Hello, please introduce yourself in one sentence.";
 const DEFAULT_TIMEOUT_MS = 30_000;
+/**
+ * Resolve a baseUrl from urls map per ADR-0004:
+ * `urls.openai ?? urls.default`.
+ */
+function resolveUrl(urls) {
+    if (!urls)
+        return undefined;
+    return urls["openai"] ?? urls["default"];
+}
 async function resolveParams(providerName, opts) {
     const settings = readSettings();
     const providerSettings = settings.providers?.[providerName] ?? {};
@@ -12,11 +21,11 @@ async function resolveParams(providerName, opts) {
     if (!apiKey) {
         throw new TestError(`请提供 ${providerName} 的 API Key（--key 或 tmf use ${providerName} 预先配置）`, "NO_API_KEY");
     }
-    // --- baseUrl: settings.json → ask API → error ---
-    let baseUrl = providerSettings.baseUrl;
+    // --- baseUrl: settings.json urls → ask API urls → error (ADR-0004) ---
+    let baseUrl = resolveUrl(providerSettings.urls);
     if (!baseUrl) {
         const info = await fetchProviderInfo(providerName);
-        baseUrl = info?.baseUrl;
+        baseUrl = resolveUrl(info?.urls);
     }
     if (!baseUrl) {
         throw new TestError(`无法获取 ${providerName} 的 API 地址，请先执行 tmf use ${providerName} 配置该供应商`, "NO_BASE_URL");
@@ -28,8 +37,6 @@ async function resolveParams(providerName, opts) {
         model = info?.defaultModel;
     }
     if (!model) {
-        // Last resort: use a commonly available model name
-        // The request will fail with a clear error if the model doesn't exist
         throw new TestError(`无法确定 ${providerName} 的默认模型，请使用 --model 指定`, "NO_BASE_URL");
     }
     // --- prompt: --prompt → built-in default ---
@@ -53,8 +60,8 @@ function formatDefault(result) {
 }
 function formatVerbose(result, params) {
     const { latencyMs, tokenUsage, throughput } = result;
-    const generationTime = tokenUsage
-        ? (tokenUsage.completion / (throughput ?? 1)) * 1000
+    const generationTime = tokenUsage && throughput
+        ? (tokenUsage.completion / throughput) * 1000
         : 0;
     console.log();
     console.log(`   提示词：${params.prompt}`);
@@ -63,9 +70,6 @@ function formatVerbose(result, params) {
     console.log(`   Token 消耗：${tokenUsage.total}（prompt: ${tokenUsage.prompt}, completion: ${tokenUsage.completion}）`);
     console.log(`   生成耗时：${(generationTime / 1000).toFixed(1)}s`);
     console.log(`   速率：${throughput} token/秒`);
-}
-function resolveDisplayModel(params) {
-    return params.model;
 }
 // ---------------------------------------------------------------
 // Command registration
@@ -79,44 +83,53 @@ export function registerTestCommand(program) {
         .option("-p, --prompt <prompt>", "自定义提示词")
         .option("-v, --verbose", "详细输出")
         .action(async (provider, opts) => {
+        let resolved;
+        let result;
         try {
-            const resolved = await resolveParams(provider, {
+            resolved = await resolveParams(provider, {
                 model: typeof opts.model === "string" ? opts.model : undefined,
                 key: typeof opts.key === "string" ? opts.key : undefined,
                 prompt: typeof opts.prompt === "string" ? opts.prompt : undefined,
             });
-            const testParams = {
+        }
+        catch (err) {
+            if (err instanceof TestError) {
+                console.error(err.message);
+                process.exit(err.exitCode);
+            }
+            console.error(`测试失败：${err instanceof Error ? err.message : String(err)}`);
+            process.exit(1);
+        }
+        // Header
+        console.log(`🔍 正在测试 ${provider}（${resolved.model}）…`);
+        console.log(`   端点：${resolved.baseUrl}`);
+        try {
+            result = await testProvider({
                 baseUrl: resolved.baseUrl,
                 apiKey: resolved.apiKey,
                 model: resolved.model,
                 prompt: resolved.prompt,
                 timeoutMs: DEFAULT_TIMEOUT_MS,
-            };
-            // Header
-            const displayModel = resolveDisplayModel(resolved);
-            console.log(`🔍 正在测试 ${provider}（${displayModel}）…`);
-            console.log(`   端点：${resolved.baseUrl}`);
-            const result = await testProvider(testParams);
-            if (!result.accessible) {
-                console.log();
-                console.log("延迟 N/A，无法访问");
-                process.exit(1);
-            }
-            if (opts.verbose) {
-                formatVerbose(result, resolved);
-            }
-            else {
-                formatDefault(result);
-            }
+            });
         }
         catch (err) {
             if (err instanceof TestError) {
                 console.error(err.message);
-                process.exit(1);
+                process.exit(err.exitCode);
             }
-            // Unexpected errors
             console.error(`测试失败：${err instanceof Error ? err.message : String(err)}`);
             process.exit(1);
+        }
+        if (!result.accessible) {
+            console.log();
+            console.log("延迟 N/A，无法访问");
+            process.exit(TEST_EXIT_CODES.UNREACHABLE);
+        }
+        if (opts.verbose) {
+            formatVerbose(result, resolved);
+        }
+        else {
+            formatDefault(result);
         }
     });
 }

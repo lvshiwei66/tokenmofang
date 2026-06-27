@@ -1,78 +1,98 @@
 import { TestError } from "../types/provider.js";
 /**
- * Parse an SSE stream body and collect chunks.
- * Returns parsed JSON objects from each `data:` line.
+ * Parse an SSE stream body into timed chunks.
+ * Reads the response body line-by-line, extracting `data:` payloads.
+ * Handles [DONE] sentinel, cross-packet fragmentation, BOM, \\r\\n, and heartbeat lines.
  */
-async function collectSSEChunks(reader, controller) {
+async function collectSSEChunks(reader, onChunk, signal) {
     const decoder = new TextDecoder();
     let buffer = "";
     while (true) {
+        if (signal?.aborted)
+            break;
         const { done, value } = await reader.read();
         if (done)
             break;
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
-        // Keep the last partial line in the buffer
         buffer = lines.pop() ?? "";
         for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith("data: "))
+            // Strip \\r and trim
+            const trimmed = line.replace(/\r$/, "").trim();
+            if (!trimmed.startsWith("data:"))
                 continue;
-            const payload = trimmed.slice(6); // after "data: "
+            // Extract payload after "data:" (with optional space)
+            let payload = trimmed.slice(5);
+            if (payload.startsWith(" "))
+                payload = payload.slice(1);
+            // Skip [DONE] sentinel
             if (payload === "[DONE]")
+                continue;
+            if (payload.length === 0)
                 continue;
             try {
                 const chunk = JSON.parse(payload);
-                controller.enqueue({ chunk, ts: Date.now() });
+                onChunk({ chunk, ts: Date.now() });
             }
             catch {
-                // Skip unparseable chunks
+                // Skip unparseable lines (heartbeats, comments)
             }
         }
     }
     // Process remaining buffer
-    const remaining = buffer.trim();
-    if (remaining.startsWith("data: ") && remaining.slice(6) !== "[DONE]") {
-        try {
-            const chunk = JSON.parse(remaining.slice(6));
-            controller.enqueue({ chunk, ts: Date.now() });
-        }
-        catch {
-            // Skip
+    const remaining = buffer.replace(/\r$/, "").trim();
+    if (remaining.startsWith("data:")) {
+        let payload = remaining.slice(5);
+        if (payload.startsWith(" "))
+            payload = payload.slice(1);
+        if (payload !== "[DONE]" && payload.length > 0) {
+            try {
+                const chunk = JSON.parse(payload);
+                onChunk({ chunk, ts: Date.now() });
+            }
+            catch {
+                // Skip
+            }
         }
     }
 }
 /**
- * Build a ReadableStream of SSE chunks with timestamps,
- * then extract metrics from the collected chunks.
+ * Collect all timed chunks from a ReadableStream body,
+ * with an optional total timeout and abort signal.
  */
-async function collectStream(body) {
+async function collectStream(body, streamTimeoutMs, signal) {
     if (!body) {
         throw new TestError("请检查网络连接", "NETWORK_ERROR");
     }
     const chunks = [];
-    return new Promise((resolve, reject) => {
-        const stream = new ReadableStream({
-            start(controller) {
-                collectSSEChunks(body.getReader(), controller)
-                    .then(() => controller.close())
-                    .catch(reject);
-            },
-        });
-        const reader = stream.getReader();
-        const pump = async () => {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done)
-                    break;
-                chunks.push(value);
-            }
-        };
-        pump()
-            .then(() => resolve({ chunks }))
-            .catch(reject);
+    const { promise, resolve, reject } = Promise.withResolvers();
+    // Total stream timeout — races against the reader loop
+    const timeoutId = setTimeout(() => {
+        reject(new TestError("延迟 N/A，无法访问", "UNREACHABLE"));
+    }, streamTimeoutMs);
+    const reader = body.getReader();
+    collectSSEChunks(reader, (c) => chunks.push(c), signal)
+        .then(() => {
+        clearTimeout(timeoutId);
+        resolve(chunks);
+    })
+        .catch((err) => {
+        clearTimeout(timeoutId);
+        reject(err);
     });
+    // Wire abort signal
+    if (signal) {
+        signal.addEventListener("abort", () => {
+            clearTimeout(timeoutId);
+            reader.cancel().catch(() => { });
+            reject(new TestError("延迟 N/A，无法访问", "UNREACHABLE"));
+        }, { once: true });
+    }
+    return promise;
 }
+// ---------------------------------------------------------------
+// Main test function
+// ---------------------------------------------------------------
 /**
  * Test a Provider by making a real streaming Chat Completion request.
  *
@@ -81,8 +101,9 @@ async function collectStream(body) {
  * Returns `{ accessible: false, ... }` on timeout (Unreachable).
  */
 export async function testProvider(params) {
-    const { baseUrl, apiKey, model, prompt, timeoutMs } = params;
-    const url = `${baseUrl.replace(/\/$/, "")}/v1/chat/completions`;
+    const { baseUrl, apiKey, model, prompt, timeoutMs, signal } = params;
+    // Per ADR-0004: the resolved baseUrl is used as-is (no additional path appended)
+    const url = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
     const body = JSON.stringify({
         model,
         messages: [{ role: "user", content: prompt }],
@@ -90,8 +111,13 @@ export async function testProvider(params) {
         stream_options: { include_usage: true },
     });
     const startTime = Date.now();
+    // --- HTTP request (with first-token timeout via AbortSignal.timeout) ---
     let response;
     try {
+        // Merge caller signal with internal timeout
+        const requestSignal = signal
+            ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
+            : AbortSignal.timeout(timeoutMs);
         response = await fetch(url, {
             method: "POST",
             headers: {
@@ -99,15 +125,14 @@ export async function testProvider(params) {
                 Authorization: `Bearer ${apiKey}`,
             },
             body,
-            signal: AbortSignal.timeout(timeoutMs),
+            signal: requestSignal,
         });
     }
     catch (err) {
-        const isTimeout = (err instanceof DOMException &&
+        if ((err instanceof DOMException &&
             (err.name === "TimeoutError" || err.name === "AbortError")) ||
             (err instanceof Error &&
-                (err.name === "TimeoutError" || err.name === "AbortError"));
-        if (isTimeout) {
+                (err.name === "TimeoutError" || err.name === "AbortError"))) {
             return {
                 accessible: false,
                 latencyMs: null,
@@ -117,17 +142,34 @@ export async function testProvider(params) {
         }
         throw new TestError("请检查网络连接", "NETWORK_ERROR");
     }
+    // --- HTTP status handling ---
     if (!response.ok) {
         if (response.status === 401) {
-            throw new TestError(`认证失败（状态码: 401），请检查 API Key 是否正确`, "AUTH_FAILED", 401);
+            throw new TestError("认证失败（状态码: 401），请检查 API Key 是否正确", "AUTH_FAILED", 401);
+        }
+        if (response.status === 403) {
+            throw new TestError("权限不足（状态码: 403），请检查 API Key 权限", "FORBIDDEN", 403);
+        }
+        if (response.status === 404) {
+            throw new TestError("端点不存在（状态码: 404），请检查 API 地址或模型名称", "NOT_FOUND", 404);
+        }
+        if (response.status === 429) {
+            throw new TestError("请求过于频繁（状态码: 429），请稍后重试", "RATE_LIMITED", 429);
         }
         if (response.status >= 500) {
             throw new TestError(`服务异常（状态码: ${response.status}），请稍后重试`, "SERVER_ERROR", response.status);
         }
+        // 400 and other 4xx
+        if (response.status === 400) {
+            throw new TestError(`请求无效（状态码: 400），请检查模型名称 "${model}" 是否正确`, "BAD_REQUEST", 400);
+        }
         throw new TestError(`请求失败（状态码: ${response.status}）`, "NETWORK_ERROR", response.status);
     }
-    // Collect SSE chunks
-    const { chunks } = await collectStream(response.body);
+    // --- Collect SSE chunks (with total stream timeout) ---
+    // Total stream timeout = remaining time from the original timeoutMs
+    const elapsed = Date.now() - startTime;
+    const streamTimeoutMs = Math.max(timeoutMs - elapsed, 1000);
+    const chunks = await collectStream(response.body, streamTimeoutMs, signal);
     if (chunks.length === 0) {
         return {
             accessible: false,
@@ -136,10 +178,10 @@ export async function testProvider(params) {
             throughput: null,
         };
     }
-    // TTFT from first chunk
+    // --- TTFT from first chunk ---
     const firstChunk = chunks[0];
     const ttft = firstChunk.ts - startTime;
-    // Find the last chunk with usage
+    // --- Find the last chunk with usage ---
     let usage = null;
     let lastTs = startTime;
     for (const { chunk, ts } of chunks) {
@@ -161,9 +203,13 @@ export async function testProvider(params) {
     if (!usage) {
         throw new TestError("响应数据异常，无法提取 Token 消耗", "NO_USAGE");
     }
+    // --- Compute throughput ---
     const totalTime = lastTs - startTime;
-    const generationTime = totalTime - ttft;
-    const throughput = generationTime > 0 ? usage.completion_tokens / (generationTime / 1000) : null;
+    const generationTimeMs = totalTime - ttft;
+    // throughput = completion_tokens / (generationTime in seconds)
+    const throughput = generationTimeMs > 0
+        ? Math.round((usage.completion_tokens / (generationTimeMs / 1000)) * 10) / 10
+        : null;
     return {
         accessible: true,
         latencyMs: ttft,
@@ -172,7 +218,7 @@ export async function testProvider(params) {
             completion: usage.completion_tokens,
             total: usage.total_tokens,
         },
-        throughput: throughput !== null ? Math.round(throughput * 10) / 10 : null,
+        throughput,
     };
 }
 //# sourceMappingURL=tester.js.map

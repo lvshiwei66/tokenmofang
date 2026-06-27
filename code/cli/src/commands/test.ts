@@ -2,8 +2,8 @@ import { Command } from "commander";
 import { testProvider } from "../providers/tester.js";
 import { fetchProviderInfo } from "../providers/api.js";
 import { readSettings } from "../config/settings.js";
-import { TestError } from "../types/provider.js";
-import type { TestParams } from "../types/provider.js";
+import { TestError, TEST_EXIT_CODES } from "../types/provider.js";
+import type { TestParams, TestResult } from "../types/provider.js";
 
 const DEFAULT_PROMPT = "Hello, please introduce yourself in one sentence.";
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -12,17 +12,27 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 // Parameter resolution (fallback chain per ADR-0007 §2)
 // ---------------------------------------------------------------
 
-interface ResolvedParams {
+export interface ResolvedTestParams {
+  /** Resolved single URL for the chat/completions endpoint */
   baseUrl: string;
   apiKey: string;
   model: string;
   prompt: string;
 }
 
+/**
+ * Resolve a baseUrl from urls map per ADR-0004:
+ * `urls.openai ?? urls.default`.
+ */
+function resolveUrl(urls: Record<string, string> | undefined): string | undefined {
+  if (!urls) return undefined;
+  return urls["openai"] ?? urls["default"];
+}
+
 async function resolveParams(
   providerName: string,
   opts: { model?: string; key?: string; prompt?: string },
-): Promise<ResolvedParams> {
+): Promise<ResolvedTestParams> {
   const settings = readSettings();
   const providerSettings = settings.providers?.[providerName] ?? {};
 
@@ -35,12 +45,12 @@ async function resolveParams(
     );
   }
 
-  // --- baseUrl: settings.json → ask API → error ---
-  let baseUrl: string | undefined = providerSettings.baseUrl;
+  // --- baseUrl: settings.json urls → ask API urls → error (ADR-0004) ---
+  let baseUrl: string | undefined = resolveUrl(providerSettings.urls);
 
   if (!baseUrl) {
     const info = await fetchProviderInfo(providerName);
-    baseUrl = info?.baseUrl;
+    baseUrl = resolveUrl(info?.urls);
   }
 
   if (!baseUrl) {
@@ -59,8 +69,6 @@ async function resolveParams(
   }
 
   if (!model) {
-    // Last resort: use a commonly available model name
-    // The request will fail with a clear error if the model doesn't exist
     throw new TestError(
       `无法确定 ${providerName} 的默认模型，请使用 --model 指定`,
       "NO_BASE_URL",
@@ -85,7 +93,7 @@ function formatTokenUsage(total: number): string {
   return `${k.toFixed(k < 10 ? 1 : 0)}K`;
 }
 
-function formatDefault(result: Awaited<ReturnType<typeof testProvider>>): void {
+function formatDefault(result: TestResult): void {
   const { latencyMs, tokenUsage, throughput } = result;
   console.log();
   console.log(
@@ -93,13 +101,10 @@ function formatDefault(result: Awaited<ReturnType<typeof testProvider>>): void {
   );
 }
 
-function formatVerbose(
-  result: Awaited<ReturnType<typeof testProvider>>,
-  params: ResolvedParams,
-): void {
+function formatVerbose(result: TestResult, params: ResolvedTestParams): void {
   const { latencyMs, tokenUsage, throughput } = result;
-  const generationTime = tokenUsage
-    ? (tokenUsage.completion / (throughput ?? 1)) * 1000
+  const generationTime = tokenUsage && throughput
+    ? (tokenUsage.completion / throughput) * 1000
     : 0;
 
   console.log();
@@ -111,10 +116,6 @@ function formatVerbose(
   );
   console.log(`   生成耗时：${(generationTime / 1000).toFixed(1)}s`);
   console.log(`   速率：${throughput} token/秒`);
-}
-
-function resolveDisplayModel(params: ResolvedParams): string {
-  return params.model;
 }
 
 // ---------------------------------------------------------------
@@ -130,47 +131,55 @@ export function registerTestCommand(program: Command): void {
     .option("-p, --prompt <prompt>", "自定义提示词")
     .option("-v, --verbose", "详细输出")
     .action(async (provider: string, opts: Record<string, string | boolean>) => {
+      let resolved: ResolvedTestParams;
+      let result: TestResult;
+
       try {
-        const resolved = await resolveParams(provider, {
+        resolved = await resolveParams(provider, {
           model: typeof opts.model === "string" ? opts.model : undefined,
           key: typeof opts.key === "string" ? opts.key : undefined,
           prompt: typeof opts.prompt === "string" ? opts.prompt : undefined,
         });
+      } catch (err: unknown) {
+        if (err instanceof TestError) {
+          console.error(err.message);
+          process.exit(err.exitCode);
+        }
+        console.error(`测试失败：${err instanceof Error ? err.message : String(err)}`);
+        process.exit(1);
+      }
 
-        const testParams: TestParams = {
+      // Header
+      console.log(`🔍 正在测试 ${provider}（${resolved.model}）…`);
+      console.log(`   端点：${resolved.baseUrl}`);
+
+      try {
+        result = await testProvider({
           baseUrl: resolved.baseUrl,
           apiKey: resolved.apiKey,
           model: resolved.model,
           prompt: resolved.prompt,
           timeoutMs: DEFAULT_TIMEOUT_MS,
-        };
-
-        // Header
-        const displayModel = resolveDisplayModel(resolved);
-        console.log(`🔍 正在测试 ${provider}（${displayModel}）…`);
-        console.log(`   端点：${resolved.baseUrl}`);
-
-        const result = await testProvider(testParams);
-
-        if (!result.accessible) {
-          console.log();
-          console.log("延迟 N/A，无法访问");
-          process.exit(1);
-        }
-
-        if (opts.verbose) {
-          formatVerbose(result, resolved);
-        } else {
-          formatDefault(result);
-        }
+        });
       } catch (err: unknown) {
         if (err instanceof TestError) {
           console.error(err.message);
-          process.exit(1);
+          process.exit(err.exitCode);
         }
-        // Unexpected errors
         console.error(`测试失败：${err instanceof Error ? err.message : String(err)}`);
         process.exit(1);
+      }
+
+      if (!result.accessible) {
+        console.log();
+        console.log("延迟 N/A，无法访问");
+        process.exit(TEST_EXIT_CODES.UNREACHABLE);
+      }
+
+      if (opts.verbose) {
+        formatVerbose(result, resolved);
+      } else {
+        formatDefault(result);
       }
     });
 }

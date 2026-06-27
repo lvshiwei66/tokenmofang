@@ -226,7 +226,7 @@ describe("testProvider", () => {
 
     await testProvider({ ...BASE_PARAMS, baseUrl: "https://api.example.com/" });
 
-    expect(fetchSpy.mock.calls[0][0]).toBe("https://api.example.com/v1/chat/completions");
+    expect(fetchSpy.mock.calls[0][0]).toBe("https://api.example.com/chat/completions");
   });
 
   it("includes stream_options.include_usage in request body", async () => {
@@ -246,6 +246,65 @@ describe("testProvider", () => {
     expect(reqBody.model).toBe("test-model");
     expect(reqBody.messages).toEqual([{ role: "user", content: "Hello" }]);
   });
+
+  // --- New HTTP error codes ---
+
+  it("throws BAD_REQUEST on HTTP 400", async () => {
+    mockFetchResponse(400, null, false);
+    await expect(testProvider(BASE_PARAMS)).rejects.toMatchObject({ code: "BAD_REQUEST", statusCode: 400 });
+  });
+
+  it("throws FORBIDDEN on HTTP 403", async () => {
+    mockFetchResponse(403, null, false);
+    await expect(testProvider(BASE_PARAMS)).rejects.toMatchObject({ code: "FORBIDDEN", statusCode: 403 });
+  });
+
+  it("throws NOT_FOUND on HTTP 404", async () => {
+    mockFetchResponse(404, null, false);
+    await expect(testProvider(BASE_PARAMS)).rejects.toMatchObject({ code: "NOT_FOUND", statusCode: 404 });
+  });
+
+  it("throws RATE_LIMITED on HTTP 429", async () => {
+    mockFetchResponse(429, null, false);
+    await expect(testProvider(BASE_PARAMS)).rejects.toMatchObject({ code: "RATE_LIMITED", statusCode: 429 });
+  });
+
+  // --- AbortSignal ---
+
+  it("returns inaccessible when aborted via signal", async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    // fetch never called because signal is already aborted — but AbortSignal.any will pass the abort
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(
+      Object.assign(new Error("aborted"), { name: "AbortError" }),
+    ));
+
+    const result = await testProvider({ ...BASE_PARAMS, signal: controller.signal });
+    expect(result.accessible).toBe(false);
+  });
+
+  // --- Stream total timeout ---
+
+  it("throws UNREACHABLE when stream reading exceeds total timeout", async () => {
+    // Create a stream that delivers one chunk then hangs forever
+    const hangingBody = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(
+          'data: {"choices":[{"delta":{"content":"first"},"index":0}]}\n\n',
+        ));
+        // Never calls controller.close() — reader hangs on second read
+      },
+    });
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(hangingBody, { status: 200 })));
+
+    // timeoutMs=100 → streamTimeoutMs = max(100 - elapsed, 1000) = 1000ms
+    await expect(
+      testProvider({ ...BASE_PARAMS, timeoutMs: 100 }),
+    ).rejects.toMatchObject({ code: "UNREACHABLE" });
+  }, 5000);
+
 
   it("uses Bearer auth header", async () => {
     const body = makeSSEBody(

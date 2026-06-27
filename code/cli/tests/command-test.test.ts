@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { Command } from "commander";
 import { registerTestCommand } from "../src/commands/test.js";
 import { writeSettings } from "../src/config/settings.js";
+import { TEST_EXIT_CODES } from "../src/types/provider.js";
 
 // ---------------------------------------------------------------
 // Helpers
@@ -83,7 +84,7 @@ describe("test command integration", () => {
         packcode: {
           apiKey: "sk-saved-key",
           model: "deepseek-v4-pro",
-          baseUrl: "https://api.deepseek.com/openai",
+          urls: { default: "https://api.deepseek.com/openai", openai: "https://api.deepseek.com/openai" },
         },
       },
     });
@@ -107,7 +108,7 @@ describe("test command integration", () => {
 
     const { stderr, exitCode } = await run(["test", "unknown-provider"]);
 
-    expect(exitCode).toBe(1);
+    expect(exitCode).toBe(TEST_EXIT_CODES.NO_API_KEY);
     expect(stderr).toContain("API Key");
   });
 
@@ -116,7 +117,7 @@ describe("test command integration", () => {
       providers: {
         packcode: {
           model: "deepseek-v4-pro",
-          baseUrl: "https://api.deepseek.com/openai",
+          urls: { default: "https://api.deepseek.com/openai", openai: "https://api.deepseek.com/openai" },
         },
       },
     });
@@ -165,7 +166,7 @@ describe("test command integration", () => {
 
     const { stdout, exitCode } = await run(["test", "packcode"]);
 
-    expect(exitCode).toBe(1);
+    expect(exitCode).toBe(TEST_EXIT_CODES.UNREACHABLE);
     expect(stdout).toContain("延迟 N/A，无法访问");
   });
 
@@ -174,7 +175,7 @@ describe("test command integration", () => {
 
     const { stderr, exitCode } = await run(["test", "packcode"]);
 
-    expect(exitCode).toBe(1);
+    expect(exitCode).toBe(TEST_EXIT_CODES.AUTH_FAILED);
     expect(stderr).toContain("认证失败");
     expect(stderr).toContain("401");
   });
@@ -184,7 +185,7 @@ describe("test command integration", () => {
 
     const { stderr, exitCode } = await run(["test", "packcode"]);
 
-    expect(exitCode).toBe(1);
+    expect(exitCode).toBe(TEST_EXIT_CODES.SERVER_ERROR);
     expect(stderr).toContain("服务异常");
     expect(stderr).toContain("503");
   });
