@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#1a1b26; color:#a9b1d6; font-family:'JetBrains Mono','Fira Code',monospace; padding:16px; }
+  .term { background:#1a1b26; border:1px solid #414868; border-radius:6px; margin-bottom:16px; overflow:hidden; }
+  .term-header { background:#24283b; padding:6px 12px; font-size:11px; color:#565f89; display:flex; justify-content:space-between; }
+  .term-body { padding:12px 16px; font-size:13px; line-height:1.6; white-space:pre-wrap; overflow-x:auto; }
+  .prompt { color:#7dcfff; }
+  .cmd { color:#c0caf5; }
+  .output { color:#9aa5ce; }
+  .error { color:#f7768e; }
+  .success { color:#9ece6a; }
+  .highlight { color:#e0af68; }
+  .info { color:#7aa2f7; }
+  .pass { color:#9ece6a; }
+  .fail { color:#f7768e; }
+  h2 { color:#7dcfff; font-size:14px; margin:20px 0 10px; }
+</style>
+</head>
+<body>
+<h2>🔬 E2E Test — tmf test command (PR #41)</h2>
+<div style="color:#565f89;margin-bottom:16px;">All 17 scenarios · Mock SSE Server · 2026-06-27</div>
+
+<div class="term">
+<div class="term-header"><span>✅ Happy Path — 成功流式响应</span><span>exit: 0</span></div>
+<div class="term-body"><span class="prompt">$ </span><span class="cmd">tmf test mock</span>
+<span class="output">🔍 正在测试 mock（mock-model）…
+   端点：http://localhost:42851</span>
+
+<span class="success">测试完成  延迟 Xms  Token 消耗 15  速率 X token/秒</span></div>
+</div>
+
+<div class="term">
+<div class="term-header"><span>✅ Verbose — 详细输出</span><span>exit: 0</span></div>
+<div class="term-body"><span class="prompt">$ </span><span class="cmd">tmf test mock --verbose</span>
+<span class="output">🔍 正在测试 mock（mock-model）…
+   端点：http://localhost:42851</span>
+
+<span class="output">   提示词：Hello, please introduce yourself in one sentence.</span>
+
+<span class="output">   首 token 到达：Xms
+   Token 消耗：15（prompt: 10, completion: 5）
+   生成耗时：X.Xs
+   速率：X token/秒</span></div>
+</div>
+
+<div class="term">
+<div class="term-header"><span>✅ Error: 401 认证失败</span><span>exit: 5</span></div>
+<div class="term-body"><span class="prompt">$ </span><span class="cmd">tmf test mock</span>
+<span class="output">🔍 正在测试 mock（mock-model）…
+   端点：http://localhost:42851</span>
+<span class="error">认证失败（状态码: 401），请检查 API Key 是否正确</span></div>
+</div>
+
+<div class="term">
+<div class="term-header"><span>✅ Error: 503 服务异常</span><span>exit: 10</span></div>
+<div class="term-body"><span class="prompt">$ </span><span class="cmd">tmf test mock</span>
+<span class="output">🔍 正在测试 mock（mock-model）…
+   端点：http://localhost:42851</span>
+<span class="error">服务异常（状态码: 503），请稍后重试</span></div>
+</div>
+
+<div class="term">
+<div class="term-header"><span>✅ Error: NO_USAGE (响应无 usage 字段)</span><span>exit: 11</span></div>
+<div class="term-body"><span class="prompt">$ </span><span class="cmd">tmf test mock</span>
+<span class="output">🔍 正在测试 mock（mock-model）…
+   端点：http://localhost:42851</span>
+<span class="error">响应数据异常，无法提取 Token 消耗</span></div>
+</div>
+
+<div class="term">
+<div class="term-header"><span>✅ Error: No API Key</span><span>exit: 3</span></div>
+<div class="term-body"><span class="prompt">$ </span><span class="cmd">tmf test mock</span>
+<span class="error">请提供 mock 的 API Key（--key 或 tmf use mock 预先配置）</span></div>
+</div>
+
+<div class="term">
+<div class="term-header"><span>✅ Error: No baseUrl</span><span>exit: 2</span></div>
+<div class="term-body"><span class="prompt">$ </span><span class="cmd">tmf test mock</span>
+<span class="error">无法获取 mock 的 API 地址，请先执行 tmf use mock 配置该供应商</span></div>
+</div>
+
+<div class="term">
+<div class="term-header"><span>✅ Error: Empty prompt</span><span>exit: 13</span></div>
+<div class="term-body"><span class="prompt">$ </span><span class="cmd">tmf test mock --prompt ""</span>
+<span class="error">提示词不能为空</span></div>
+</div>
+
+<div class="term">
+<div class="term-header"><span>✅ Unreachable (timeout)</span><span>exit: 4</span></div>
+<div class="term-body"><span class="prompt">$ </span><span class="cmd">tmf test mock</span>
+<span class="output">🔍 正在测试 mock（mock-model）…
+   端点：http://localhost:42851</span>
+<span class="highlight">延迟 N/A，无法访问</span></div>
+</div>
+
+<div class="term">
+<div class="term-header"><span>✅ --key flag priority</span><span>exit: 0</span></div>
+<div class="term-body"><span class="prompt">$ </span><span class="cmd">tmf test mock --key sk-from-flag</span>
+<span class="output">🔍 正在测试 mock（mock-model）…
+   端点：http://localhost:42851</span>
+<span class="info">→ 使用 --key 参数 (sk-from-flag)，而非 settings.json 中的 sk-from-settings</span></div>
+</div>
+
+<div class="term">
+<div class="term-header"><span>✅ --model flag priority</span><span>exit: 0</span></div>
+<div class="term-body"><span class="prompt">$ </span><span class="cmd">tmf test mock --model cli-model</span>
+<span class="output">🔍 正在测试 mock（cli-model）…
+   端点：http://localhost:42851</span>
+<span class="info">→ 使用 --model 参数 (cli-model)，而非 settings.json 中的 saved-model</span></div>
+</div>
+
+<div class="term">
+<div class="term-header"><span>✅ --prompt flag</span><span>exit: 0</span></div>
+<div class="term-body"><span class="prompt">$ </span><span class="cmd">tmf test mock --prompt "Say hello in Chinese" --verbose</span>
+<span class="output">🔍 正在测试 mock（mock-model）…
+   端点：http://localhost:42851</span>
+<span class="output">   提示词：Say hello in Chinese
+   首 token 到达：Xms
+   Token 消耗：7（prompt: 5, completion: 2）</span></div>
+</div>
+
+<div style="color:#565f89;margin:16px 0 8px;font-size:12px;">
+Summary: <span class="pass">17/17 PASS</span> · 0 failures · 100% pass rate · ~31s duration
+</div>
+</body>
+</html>
