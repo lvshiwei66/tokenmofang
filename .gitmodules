@@ -1,6 +1,7 @@
 [submodule "code/cli"]
 	path = code/cli
 	url = git@github.com:lvshiwei66/tokenmofang-cli.git
+	branch = dev
 [submodule "code/api"]
 	path = code/api
 	url = git@github.com:lvshiwei66/tokenmofang-api.git
