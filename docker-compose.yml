@@ -1,0 +1,35 @@
+services:
+  api:
+    build:
+      context: ./code/api
+      dockerfile: Dockerfile
+    container_name: tmf-api
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./code/api/data/providers.yaml:/app/data/providers.yaml:ro
+    environment:
+      - TMF_API_PORT=3000
+      - TMF_CACHE_TTL=3600
+      - TMF_PROVIDERS_TTL=600
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>r.ok?process.exit(0):process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  cli:
+    build:
+      context: ./code/cli
+      dockerfile: Dockerfile
+    container_name: tmf-cli
+    environment:
+      - TMF_API_URL=http://api:3000
+    depends_on:
+      api:
+        condition: service_healthy
+    # CLI command override via docker compose run
+    # Default: show help
+    command: ["--help"]
