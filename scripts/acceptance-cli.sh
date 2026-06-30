@@ -75,7 +75,6 @@ test_codex() {
     echo "  ❌ tmf use failed"
     return 1
   fi
-  echo "  ✅"
 
   local outfile=/tmp/codex-out.txt
   rm -f "$outfile"
@@ -118,8 +117,6 @@ test_claude() {
     echo "  ❌ tmf use failed"
     return 1
   fi
-  echo "  ✅"
-
   local jsonfile=/tmp/claude-out.json
   local errfile=/tmp/claude-err.log
 
