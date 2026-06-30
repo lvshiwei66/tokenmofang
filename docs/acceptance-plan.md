@@ -107,6 +107,18 @@
 | 失败输出 "延迟N/A, 无法访问" | requirements §4 | ✅ | `TestError` 处理 |
 | 从配置读取 --key（除非未设置过） | requirements §4 | ✅ | `resolveParams()` 回退链 |
 
+### 1.11 智能体 E2E 验收 (`scripts/acceptance-cli.sh`) ✅
+
+| 验收项 | 规格来源 | 状态 | 验证方式 |
+|--------|---------|------|---------|
+| Codex CLI 切换后响应含期望模型名 | CLI 验收设计 §四 | ✅ | `acceptance-cli.sh` |
+| Claude Code CLI 切换后响应含期望模型名 | CLI 验收设计 §四 | ✅ | `acceptance-cli.sh` |
+| `--app` 参数过滤 | CLI 验收设计 §四 | ✅ | `acceptance-cli.sh --app codex` |
+| `--model` 覆盖 | CLI 验收设计 §四 | ✅ | `acceptance-cli.sh --model gpt-5.1` |
+| 环境变量缺失报错 | CLI 验收设计 §三 | ✅ | 退出码 2 |
+| 超时保护 (60s) | CLI 验收设计 §五 | ✅ | timeout 命令 |
+
+
 ### 1.7 `tmf import` / `tmf export` — 导入导出 ❌ 未实现
 
 | 验收项 | 规格来源 | 状态 | 备注 |

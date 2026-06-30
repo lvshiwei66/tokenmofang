@@ -41,6 +41,26 @@ echo ">>> tmf test openai"
 run test openai --key test-key-123 || true
 
 echo ""
+echo "[2.5/3] CLI 验收（智能体 E2E）"
+
+# acceptance() — 将 API key 通过 -e 传入容器
+acceptance() {
+  local provider=$1
+  local varname="TMF_ACCEPTANCE_KEY_${provider//-/_}"
+  varname="${varname^^}"
+  if [ -z "${!varname:-}" ]; then
+    echo ">>> 跳过 $provider: $varname 未设置"
+    return 0
+  fi
+  echo ">>> acceptance-cli.sh $provider --app all"
+  $COMPOSE run --rm -T -e "$varname" --entrypoint sh test \
+    -c "/app/acceptance-cli.sh $provider --app all"
+}
+
+acceptance deepseek
+acceptance openai
+
+echo ""
 echo "[3/3] 卸载..."
 $COMPOSE down -v 2>&1 | tail -1
 
