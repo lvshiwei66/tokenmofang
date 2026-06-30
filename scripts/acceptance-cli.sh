@@ -5,11 +5,9 @@ set -euo pipefail
 # Format: "provider_name|keyword|default_model"
 declare -a PROVIDERS=(
   "deepseek|deepseek|deepseek-v4-pro"
+  "xcode|gpt|gpt-5.4-mini"
   "openai|gpt|gpt-5.1"
 )
-
-TIMEOUT=60
-PROMPT="Reply with only your model name"
 
 # --- Helpers ---
 
