@@ -1,11 +1,15 @@
+# ── 测试验收专用 Compose ──
+# 与生产 docker-compose.yml 独立，不互相干扰
+# 用途：自动化验收 CLI 全链路（tmf list / use / rollback / test）
+
 services:
   api:
     build:
       context: ./code/api
       dockerfile: Dockerfile
-    container_name: tmf-api
+    container_name: tmf-test-api
     ports:
-      - "3000:3000"
+      - "3002:3000"
     volumes:
       - ./code/api/data/providers.yaml:/app/data/providers.yaml:ro
     environment:
@@ -14,7 +18,7 @@ services:
       - TMF_PROVIDERS_TTL=600
       - TMF_RATE_LIMIT_MAX=8
       - TMF_RATE_LIMIT_WINDOW_MS=60000
-    restart: unless-stopped
+    restart: "no"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>r.ok?process.exit(0):process.exit(1))"]
       interval: 10s
@@ -22,16 +26,21 @@ services:
       retries: 3
       start_period: 5s
 
-  cli:
+  test:
     build:
-      context: ./code/cli
-      dockerfile: Dockerfile
-    container_name: tmf-cli
+      context: .
+      dockerfile: docker/test/Dockerfile
+    container_name: tmf-test-runner
+    stdin_open: true
+    tty: true
+    volumes:
+      - tmf-config:/root/.tokenmofang
     environment:
       - TMF_API_URL=http://api:3000
     depends_on:
       api:
         condition: service_healthy
-    # CLI command override via docker compose run
-    # Default: show help
     command: ["--help"]
+
+volumes:
+  tmf-config:
