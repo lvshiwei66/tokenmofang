@@ -55,83 +55,99 @@ get_api_key() {
   echo "$val"
 }
 
+# Mask API key: show first 4 + **** + last 4
+mask_key() {
+  local key=$1
+  if [ ${#key} -le 8 ]; then
+    echo "****"
+  else
+    echo "${key:0:4}****${key: -4}"
+  fi
+}
+
 # --- Test functions ---
 
-# Test Codex CLI with the configured provider.
-# Returns 0 on pass, 1 on fail.
 test_codex() {
   local provider=$1 key=$2 model=$3 keyword=$4
 
-  echo -n "  tmf use $provider --app codex... "
+  echo "  tmf use $provider --app codex --key $(mask_key "$key") --model $model"
   if ! tmf use "$provider" --app codex --key "$key" --model "$model" > /dev/null 2>&1; then
-    echo "❌ tmf use failed"
+    echo "  ❌ tmf use failed"
     return 1
   fi
-  echo "✅"
+  echo "  ✅"
 
-  echo "  prompt: $PROMPT"
-  echo -n "  codex exec... "
   local outfile=/tmp/codex-out.txt
   rm -f "$outfile"
+  local logfile=/tmp/codex-log.txt
 
+  echo "  codex exec --skip-git-repo-check --ephemeral --output-last-message $outfile \"$PROMPT\""
   timeout "$TIMEOUT" codex exec \
     --skip-git-repo-check \
     --ephemeral \
     --output-last-message "$outfile" \
-    "$PROMPT" > /dev/null 2>&1 || true
+    "$PROMPT" > "$logfile" 2>&1 || true
+
+  if [ -s "$logfile" ]; then
+    sed 's/^/  │ /' "$logfile"
+  fi
 
   if [ ! -f "$outfile" ]; then
-    echo "❌ no output file produced"
+    echo "  ❌ no output file produced"
     return 1
   fi
+
   if grep -qi "$keyword" "$outfile"; then
-    echo "✅ (keyword \"$keyword\" matched)"
-    echo "   ┌─ AI 回复 ──────────────────────────────"
-    sed 's/^/   │ /' "$outfile"
-    echo "   └────────────────────────────────────────"
+    echo "  ✅ keyword \"$keyword\" matched"
+    echo "  ┌─ AI 回复 ──────────────────────────────"
+    sed 's/^/  │ /' "$outfile"
+    echo "  └────────────────────────────────────────"
     return 0
   else
-    echo "❌ keyword not found in output: $(head -c 200 "$outfile")"
+    echo "  ❌ keyword \"$keyword\" not found"
+    sed 's/^/  │ /' "$outfile"
     return 1
   fi
 }
 
-# Test Claude Code CLI with the configured provider.
-# Returns 0 on pass, 1 on fail.
 test_claude() {
   local provider=$1 key=$2 model=$3 keyword=$4
 
-  echo -n "  tmf use $provider --app claude-code... "
+  echo "  tmf use $provider --app claude-code --key $(mask_key "$key") --model $model"
   if ! tmf use "$provider" --app claude-code --key "$key" --model "$model" > /dev/null 2>&1; then
-    echo "❌ tmf use failed"
+    echo "  ❌ tmf use failed"
     return 1
   fi
-  echo "✅"
+  echo "  ✅"
 
-  echo "  prompt: $PROMPT"
-  echo -n "  claude -p... "
   local jsonfile=/tmp/claude-out.json
   local errfile=/tmp/claude-err.log
 
+  echo "  claude -p \"$PROMPT\" --output-format json --no-session-persistence"
   timeout "$TIMEOUT" claude -p "$PROMPT" \
     --output-format json \
     --no-session-persistence \
     > "$jsonfile" 2>"$errfile" || true
 
+  if [ -s "$errfile" ]; then
+    sed 's/^/  │ /' "$errfile"
+  fi
+
   local result
   if ! result=$(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('$jsonfile','utf8')).result||'')" 2>/dev/null); then
-    echo "❌ invalid JSON output"
+    echo "  ❌ invalid JSON output"
     return 1
   fi
 
   if echo "$result" | grep -qi "$keyword"; then
-    echo "✅ (keyword \"$keyword\" matched)"
-    echo "   ┌─ AI 回复 ──────────────────────────────"
-    echo "$result" | sed 's/^/   │ /'
-    echo "   └────────────────────────────────────────"
+    echo "  ✅ keyword \"$keyword\" matched"
+    echo "  ┌─ AI 回复 ──────────────────────────────"
+    echo "$result" | sed 's/^/  │ /'
+    echo "  └────────────────────────────────────────"
     return 0
   else
-    echo "❌ keyword not found in output: $(echo "$result" | head -c 200)"
+    echo "  ❌ keyword \"$keyword\" not found"
+    echo "$result" | sed 's/^/  │ /'
     return 1
   fi
 }
