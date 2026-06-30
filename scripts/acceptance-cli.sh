@@ -2,11 +2,12 @@
 set -euo pipefail
 
 # --- Configuration ---
-# Format: "provider_name|keyword_codex|keyword_claude|default_model"
+# Format: "provider_name|default_model"
+# Keyword is auto-derived from model name (prefix before first '-')
 declare -a PROVIDERS=(
-  "deepseek|deepseek|deepseek|deepseek-v4-pro"
-  "xcode|gpt|claude|gpt-5.4-mini"
-  "openai|gpt|gpt|gpt-5.1"
+  "deepseek|deepseek-v4-pro"
+  "xcode|gpt-5.4-mini"
+  "openai|gpt-5.1"
 )
 
 TIMEOUT=60
@@ -26,21 +27,23 @@ die() {
   echo "ERROR: $*" >&2
   exit 2
 }
-
-# Lookup provider in mapping table. Sets globals: KEYWORD_CODEX, KEYWORD_CLAUDE, DEFAULT_MODEL.
+# Lookup provider in mapping table. Sets global DEFAULT_MODEL.
 lookup_provider() {
   local name=$1
   for entry in "${PROVIDERS[@]}"; do
-    local n kc kcl m
-    IFS='|' read -r n kc kcl m <<< "$entry"
+    local n m
+    IFS='|' read -r n m <<< "$entry"
     if [ "$n" = "$name" ]; then
-      KEYWORD_CODEX="$kc"
-      KEYWORD_CLAUDE="$kcl"
       DEFAULT_MODEL="$m"
       return 0
     fi
   done
   return 1
+}
+
+# Derive keyword from model name (prefix before first '-')
+model_keyword() {
+  echo "${1%%-*}"
 }
 
 # Get API key from environment. Exits with code 2 if not set.
@@ -194,19 +197,20 @@ main() {
   fi
   model="${model:-$DEFAULT_MODEL}"
 
-  local api_key
+  local api_key keyword
   api_key=$(get_api_key "$provider")
+  keyword=$(model_keyword "$model")
 
   echo "============================================"
-  echo " Token魔方 CLI 验收: $provider"
+  echo " Token魔方 CLI 验收: $provider (model: $model, keyword: $keyword)"
   echo "============================================"
 
   local total=0 passed=0
 
   if [ "$app" = "all" ] || [ "$app" = "codex" ]; then
     total=$((total + 1))
-    echo "[$total] Codex (keyword: $KEYWORD_CODEX)"
-    if test_codex "$provider" "$api_key" "$model" "$KEYWORD_CODEX"; then
+    echo "[$total] Codex"
+    if test_codex "$provider" "$api_key" "$model" "$keyword"; then
       passed=$((passed + 1))
     fi
     echo ""
@@ -214,8 +218,8 @@ main() {
 
   if [ "$app" = "all" ] || [ "$app" = "claude-code" ]; then
     total=$((total + 1))
-    echo "[$total] Claude Code (keyword: $KEYWORD_CLAUDE)"
-    if test_claude "$provider" "$api_key" "$model" "$KEYWORD_CLAUDE"; then
+    echo "[$total] Claude Code"
+    if test_claude "$provider" "$api_key" "$model" "$keyword"; then
       passed=$((passed + 1))
     fi
     echo ""
