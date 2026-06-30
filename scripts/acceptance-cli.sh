@@ -83,12 +83,13 @@ test_codex() {
     return 1
   fi
 
+  local snippet
+  snippet=$(head -c 300 "$outfile" | tr '\n' ' ')
   if grep -qi "$keyword" "$outfile"; then
     echo "✅ (keyword \"$keyword\" matched)"
+    echo "  ↳ $snippet"
     return 0
   else
-    local snippet
-    snippet=$(head -c 200 "$outfile" | tr '\n' ' ')
     echo "❌ keyword not found in output: $snippet"
     return 1
   fi
@@ -121,11 +122,14 @@ test_claude() {
     return 1
   fi
 
+  local snippet
+  snippet=$(echo "$result" | head -c 300)
   if echo "$result" | grep -qi "$keyword"; then
     echo "✅ (keyword \"$keyword\" matched)"
+    echo "  ↳ $snippet"
     return 0
   else
-    echo "❌ keyword not found in output: $(echo "$result" | head -c 200)"
+    echo "❌ keyword not found in output: $snippet"
     return 1
   fi
 }
