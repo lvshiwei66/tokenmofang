@@ -9,6 +9,8 @@ declare -a PROVIDERS=(
   "openai|gpt|gpt-5.1"
 )
 
+TIMEOUT=60
+PROMPT="Reply with only your model name"
 # --- Helpers ---
 
 usage() {
