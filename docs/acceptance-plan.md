@@ -29,8 +29,8 @@
 | 检测已安装的 AI 应用 (codex, claude-code, openclaw) | requirements §1 | ✅ | `setup.test.ts` |
 | 输出结构化检测报告到 `~/.tokenmofang/detection-report.json` | requirements §1 | ✅ | `setup.test.ts` |
 | 生成幂等客户端指纹 (fingerprint) | requirements §安全 | ✅ | `setup.test.ts` |
-| root 用户运行警告 | ADR-0001 | ✅ | `setup.test.ts` |
-| 未检测到任何应用时输出安装建议 | requirements §1 | ✅ | `setup.test.ts` |
+| 输出简洁化（无 emoji，无 root 警告，无安装建议，无 fingerprint） | implementation | ✅ | 代码审查 |
+| 未检测到任何应用时输出 "No installed AI applications detected." | requirements §1 | ✅ | `setup.test.ts` |
 | 检测报告含时间戳 | implementation | ✅ | 代码审查 |
 
 ### 1.2 `tmf list` — 浏览供应商清单 ✅
@@ -39,8 +39,8 @@
 |--------|---------|------|---------|
 | 默认返回前 20 条 | requirements §2 | ✅ | `list.test.ts` |
 | `--all` 返回全部 | requirements §2 | ✅ | `list.test.ts` |
-| 表格展示：名称、延迟、价格、模型、描述、标签 | requirements §2 + ADR-0002 | ✅ | `list.test.ts` |
-| 模型列展示前 3 个 + `(+N)` 剩余计数 | ADR-0002 §12 | ✅ | `list.test.ts` |
+| 纯文本对齐（无表格线），emoji 作为数据展示 | ADR-0002 §12 | ✅ | `list.test.ts` |
+| 模型列展示 2 个名 + (+总数) 计数器，≤2 个全显示 | ADR-0002 §12 | ✅ | `list.test.ts` |
 | 总数提示 "XXX provider(s) total. Use --all to show all" | requirements §2 | ✅ | `list.test.ts` |
 | 通过 `x-client-id` 请求头标识客户端 | requirements §安全 + ADR-0002 | ✅ | `api.test.ts` |
 | 网络错误友好提示 | ADR-0002 §9 | ✅ | `list.test.ts` |
@@ -66,7 +66,7 @@
 | `--model` 设置模型名称 | requirements §3 | ✅ | `use.test.ts` |
 | `--app` 指定目标应用 | requirements §3 | ✅ | `use.test.ts` |
 | 单应用时 `--app` 可选（自动选择） | requirements §3 注意 + ADR-0001 §7 | ✅ | `use.test.ts` |
-| 多应用未指定时报错 | ADR-0001 §7 | ✅ | `use.test.ts` |
+| 无 `--app` 时应用到全部已安装应用 | ADR-0001 §7 | ✅ | `use.test.ts` |
 | Per-provider 记忆（apiKey、model、urls） | requirements §3 注意 + ADR-0001 §8 | ✅ | `use.test.ts` |
 | 记忆命中时自动填充，CLI 参数可覆盖 | ADR-0001 §1 | ✅ | `use.test.ts` |
 | 记忆没有时调 API 获取 ProviderDetail | ADR-0001 §1 | ✅ | `use.test.ts` |
@@ -173,7 +173,7 @@
 | 验收项 | 规格来源 | 状态 | 验证方式 |
 |--------|---------|------|---------|
 | 速率限制 8 req/min/client (IP 固定窗口，env 可配) | requirements §安全 | ✅ | `rateLimit.test.ts` |
-| x-client-id HMAC-SHA256 签名验证 | requirements §安全 | ✅ | `auth.test.ts` |
+| x-client-id checksum 验证 (SHA256, 内置种子) | requirements §安全 | ✅ | `auth.test.ts` |
 | 客户端注册 (POST /api/v1/register) | requirements §安全 | ❌ | 已取消，改用共享密钥 |
 | /health 端点豁免限流和认证 | implementation | ✅ | `server.ts` onRequest hooks |
 
@@ -293,8 +293,8 @@ pazi 为私有仓库 (`tokenmofang-pazi`)，通过 git submodule 挂载。属于
 
 | 风险 | 严重程度 | 说明 |
 |------|---------|------|
-| API 无限流 — 成本攻击面 | 🟢 已解决 | IP 固定窗口限流 (env 可配) |
-| x-client-id 可伪造 | 🟢 已解决 | HMAC-SHA256 签名验证 |
+| 指纹校验码可逆向（种子硬编码） | 🟡 中 | checksum 算法内置，非加密级安全 |
+| x-client-id 可伪造 | 🟢 已解决 | checksum 拒绝随机数伪造 |
 | CLI 无版本锁定与 API | 🟡 中 | CLI 无最低版本检查，API breaking change 静默失败 |
 | 配置改写不保留注释/格式 | 🟢 低 | ADR-0001 §4 明确 v1 不处理 |
 | pazi YAML 写入锁竞争 | 🟡 中 | 并发写入 `providers.yaml` 无分布式锁 |
@@ -304,11 +304,11 @@ pazi 为私有仓库 (`tokenmofang-pazi`)，通过 git submodule 挂载。属于
 
 ## 十一、验收结论
 
-**可交付状态**：✅ **P0 已通过** — CLI 核心流程 (`setup` → `list` → `use` → `rollback` → `test`) 完整可用，安全基础设施（速率限制 + HMAC 签名验证）已实现，测试全部通过 (205/205)。
+**可交付状态**：✅ **P0 已通过** — CLI 核心流程 (`setup` → `list` → `use` → `rollback` → `test`) 完整可用，安全基础设施（速率限制 + checksum 校验码）已实现，测试全部通过 (205/205)。
 
 **发布准备**：
 1. npm 包 `@tokenmofang/cli` 已配置发布
-2. Docker 部署脚本 `scripts/dev-up.sh` / `scripts/dev-test.sh`
+2. Docker 验收环境 `docker-compose.test.yml` 一键自动化测试
 3. API 支持 Docker Compose 一键部署
 
 **可后续迭代**：
@@ -317,3 +317,46 @@ pazi 为私有仓库 (`tokenmofang-pazi`)，通过 git submodule 挂载。属于
 6. `tmf get` / `tmf set`
 7. `tmf help` 显式子命令
 8. CI/CD + 跨平台验证
+
+
+
+## 十二、关键知识点
+
+### 指纹校验码 v2（Issue #42）
+
+- **旧方案**：`fingerprint.HMAC-SHA256(TMF_CLIENT_SECRET, fingerprint)`，依赖环境变量
+- **新方案**：`fingerprint.SHA256("tmf-v2" + fingerprint)[:16]`，无配置
+- 格式：64hex.16hex（例 `00f43049...ea869c.39632d19521e4c51`）
+- 设计意图：拒绝随机数伪造，不追求强加密安全
+- CLI：`getClientId(fingerprint?)` 总是附加校验码
+- API：`verifyClientId(xClientId?)` 验证 dot 位置 + 校验码
+- `timingSafeEqual` 防时序攻击
+
+### CLI 输出设计原则
+
+- 系统消息（setup、error）无 emoji，避免分散注意力
+- 数据展示（list description）可用 emoji 作为数据标识
+- `tmf -V` 显示 `TMF_API_URL`，`--help` 底部显示环境变量
+- 纯文本对齐无表格线，总宽 ≤101 字符
+
+### use 命令行为
+
+- `--app codex`：仅切换指定应用
+- 无 `--app`：自动应用到全部已检测应用
+- `tmf use` + `tmf rollback` 必须同一容器运行（`.bak` 不跨容器）
+
+### Docker 测试环境
+
+| 文件 | 用途 |
+|------|------|
+| `docker-compose.test.yml` | 独立测试编排，端口 3002，不冲突生产 |
+| `docker/test/Dockerfile` | tmf + Codex/Claude/OpenClaw 模拟配置 |
+| `scripts/test-up.sh` | 加载测试环境 |
+| `scripts/test-down.sh` | 卸载测试环境 |
+| `scripts/test-auto.sh` | 全自动：卸载→构建→测试清单→卸载 |
+
+### Bug 备忘
+
+- `use.ts` 曾用 `settings.clientId`（不存在字段），导致 API 401 → 改 `config.fingerprint`
+- `extractFirstSentence` 正则 `[。.．]` 误判版本号 `2.5` 中的 `.` 为句子结尾
+- `docker compose run --rm` 每次创建新容器，`.bak` 不跨容器持久化
