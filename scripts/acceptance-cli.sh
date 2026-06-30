@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # --- Configuration ---
-# Format: "provider_name|keyword|default_model"
+# Format: "provider_name|keyword_codex|keyword_claude|default_model"
 declare -a PROVIDERS=(
-  "deepseek|deepseek|deepseek-v4-pro"
-  "xcode|gpt|gpt-5.4-mini"
-  "openai|gpt|gpt-5.1"
+  "deepseek|deepseek|deepseek|deepseek-v4-pro"
+  "xcode|gpt|claude|gpt-5.4-mini"
+  "openai|gpt|gpt|gpt-5.1"
 )
 
 TIMEOUT=60
@@ -27,14 +27,15 @@ die() {
   exit 2
 }
 
-# Lookup provider in mapping table. Sets global KEYWORD and DEFAULT_MODEL.
+# Lookup provider in mapping table. Sets globals: KEYWORD_CODEX, KEYWORD_CLAUDE, DEFAULT_MODEL.
 lookup_provider() {
   local name=$1
   for entry in "${PROVIDERS[@]}"; do
-    local n k m
-    IFS='|' read -r n k m <<< "$entry"
+    local n kc kcl m
+    IFS='|' read -r n kc kcl m <<< "$entry"
     if [ "$n" = "$name" ]; then
-      KEYWORD="$k"
+      KEYWORD_CODEX="$kc"
+      KEYWORD_CLAUDE="$kcl"
       DEFAULT_MODEL="$m"
       return 0
     fi
@@ -83,15 +84,14 @@ test_codex() {
     echo "❌ no output file produced"
     return 1
   fi
-
-  local snippet
-  snippet=$(head -c 300 "$outfile" | tr '\n' ' ')
   if grep -qi "$keyword" "$outfile"; then
     echo "✅ (keyword \"$keyword\" matched)"
-    echo "  ↳ $snippet"
+    echo "   ┌─ AI 回复 ──────────────────────────────"
+    sed 's/^/   │ /' "$outfile"
+    echo "   └────────────────────────────────────────"
     return 0
   else
-    echo "❌ keyword not found in output: $snippet"
+    echo "❌ keyword not found in output: $(head -c 200 "$outfile")"
     return 1
   fi
 }
@@ -124,14 +124,14 @@ test_claude() {
     return 1
   fi
 
-  local snippet
-  snippet=$(echo "$result" | head -c 300)
   if echo "$result" | grep -qi "$keyword"; then
     echo "✅ (keyword \"$keyword\" matched)"
-    echo "  ↳ $snippet"
+    echo "   ┌─ AI 回复 ──────────────────────────────"
+    echo "$result" | sed 's/^/   │ /'
+    echo "   └────────────────────────────────────────"
     return 0
   else
-    echo "❌ keyword not found in output: $snippet"
+    echo "❌ keyword not found in output: $(echo "$result" | head -c 200)"
     return 1
   fi
 }
@@ -192,8 +192,8 @@ main() {
 
   if [ "$app" = "all" ] || [ "$app" = "codex" ]; then
     total=$((total + 1))
-    echo "[$total] Codex (keyword: $KEYWORD)"
-    if test_codex "$provider" "$api_key" "$model" "$KEYWORD"; then
+    echo "[$total] Codex (keyword: $KEYWORD_CODEX)"
+    if test_codex "$provider" "$api_key" "$model" "$KEYWORD_CODEX"; then
       passed=$((passed + 1))
     fi
     echo ""
@@ -201,8 +201,8 @@ main() {
 
   if [ "$app" = "all" ] || [ "$app" = "claude-code" ]; then
     total=$((total + 1))
-    echo "[$total] Claude Code (keyword: $KEYWORD)"
-    if test_claude "$provider" "$api_key" "$model" "$KEYWORD"; then
+    echo "[$total] Claude Code (keyword: $KEYWORD_CLAUDE)"
+    if test_claude "$provider" "$api_key" "$model" "$KEYWORD_CLAUDE"; then
       passed=$((passed + 1))
     fi
     echo ""
