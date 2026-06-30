@@ -68,6 +68,7 @@ test_codex() {
   fi
   echo "✅"
 
+  echo "  prompt: $PROMPT"
   echo -n "  codex exec... "
   local outfile=/tmp/codex-out.txt
   rm -f "$outfile"
@@ -107,6 +108,7 @@ test_claude() {
   fi
   echo "✅"
 
+  echo "  prompt: $PROMPT"
   echo -n "  claude -p... "
   local jsonfile=/tmp/claude-out.json
   local errfile=/tmp/claude-err.log
